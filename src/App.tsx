@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import QRCode from "qrcode";
 import { supabase, isSupabaseConfigured } from "./lib/supabase";
+import { uploadVideo, deleteVideo } from "./lib/videoUpload";
 
 /* ═══════ TYPES ═══════ */
 type Role = "teacher" | "student";
@@ -153,7 +154,7 @@ function useVideoUrl(path: string): string {
   const [url, setUrl] = useState("");
   useEffect(() => {
     if (!path) return;
-    if (path.startsWith("http")) { setUrl(path); return; }
+    if (path.startsWith("http") || path.startsWith("/")) { setUrl(path); return; }
     if (!isSupabaseConfigured) return;
     
     // Call Edge Function to get signed URL
@@ -270,7 +271,10 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
       }else{
         // Delete flow
         try {
-          if (!w.videoUrl.startsWith("http")) {
+          if (w.videoUrl.startsWith("/api/videos/")) {
+             await deleteVideo(w.videoUrl);
+             await fetch(`/api/works/${encodeURIComponent(w.id)}`, { method: "DELETE" });
+          } else if (!w.videoUrl.startsWith("http")) {
              const { error } = await supabase.functions.invoke("delete-video", {
                body: { path: w.videoUrl }
              });
@@ -432,6 +436,14 @@ export default function App(){
     });
     return () => data.subscription.unsubscribe();
   }, []);
+
+  // Load submissions stored in the cloud so they are visible on every device
+  useEffect(()=>{
+    fetch("/api/works").then(r=>r.ok?r.json():[]).then((cloud:Work[])=>{
+      if(!Array.isArray(cloud)||cloud.length===0)return;
+      setWorks(prev=>{const ids=new Set(cloud.map(w=>w.id));return[...cloud,...prev.filter(w=>!ids.has(w.id))]});
+    }).catch(()=>{});
+  },[]);
 
   useEffect(()=>{sv(SK.u,users)},[users]);
   useEffect(()=>{sv(SK.pw,adminPw)},[adminPw]);
@@ -1237,37 +1249,33 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
     if(!cid || !title.trim() || !vidFile){setMsg("All fields required"); return}
     
     setUpl(true);
-    setProg(0); // Progress is now indeterminate in UI
+    setProg(0);
 
     try {
-      // Direct upload to Supabase Storage Bucket
-      const fileExt = vidFile.name.split('.').pop();
-      const sanitizedName = vidFile.name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-      const fileName = `${Date.now()}_${sanitizedName}.${fileExt}`;
-      const filePath = `${cid}/${student.id}/${fileName}`;
+      // Upload the video to cloud storage (Netlify Blobs)
+      const videoUrl = await uploadVideo(vidFile, setProg);
 
-      const { data, error } = await supabase.storage
-        .from("videos")
-        .upload(filePath, vidFile, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (error) throw new Error(error.message);
-      if (!data?.path) throw new Error("Upload failed, no path returned");
-
-      // Save metadata to state (localStorage)
-      const storagePath = data.path;
-      setWorks(p => [{
+      // Save the submission record to the cloud database
+      const work: Work = {
         id: mid("w"),
         competitionId: cid,
         studentId: student.id,
         title: title.trim(),
-        desc: desc.trim(), // Added description support back
-        videoUrl: storagePath,
-        thumb: storagePath, // Use path as thumbnail for now
+        desc: desc.trim(),
+        videoUrl,
+        thumb: "",
         at: new Date().toISOString()
-      }, ...p]);
+      };
+      const res = await fetch("/api/works", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(work)
+      });
+      if (!res.ok) {
+        await deleteVideo(videoUrl).catch(() => {});
+        throw new Error("Failed to save submission");
+      }
+      setWorks(p => [work, ...p]);
 
       setMsg("🎉 Submitted! Your work will appear on the Champions page.");
       setTitle(""); setDesc(""); setVidFile(null); setVidUrl(""); setStep("idle");
