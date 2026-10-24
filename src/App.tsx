@@ -1352,15 +1352,15 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
         thumb: "",
         at: new Date().toISOString()
       };
-      const res = await fetch("/api/works", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(work)
-      });
-      if (!res.ok) {
-        await deleteVideo(videoUrl).catch(() => {});
-        throw new Error("Failed to save submission");
-      }
+      // Supabase is the source of truth; the legacy endpoint is best-effort only.
+      try {
+        await fetch("/api/works", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(work)
+        });
+      } catch { /* ignore legacy endpoint failures */ }
+
       setWorks(p => [work, ...p]);
 
       setMsg("🎉 Submitted! Your work will appear on the Champions page.");
