@@ -140,7 +140,43 @@ uTitles.forEach((t,i)=>seedW.push({id:`wu${i}`,competitionId:"cu1",studentId:`ds
 function cn(...c:Array<string|false|null|undefined>){return c.filter(Boolean).join(" ")}
 function mid(p:string){return `${p}-${Math.random().toString(36).slice(2,8)}`}
 function ld<T>(k:string,f:T):T{try{const v=localStorage.getItem(k);return v?JSON.parse(v):f}catch{return f}}
-function sv(k:string,v:unknown){localStorage.setItem(k,JSON.stringify(v))}
+function sv(k:string,v:any){
+  localStorage.setItem(k,JSON.stringify(v));
+  if(typeof window === 'undefined' || !isSupabaseConfigured) return;
+  setTimeout(async ()=>{
+    try {
+      if(k===SK.u && Array.isArray(v) && v.length > 0){
+        const rows = v.map((u:any)=>({
+          id:u.id, full_name:u.fullName, role:u.role, grade:u.grade,
+          section:u.section, teacher_id:u.teacherId||null,
+          username:u.username, password:u.password, active:u.active!==false
+        }));
+        await supabase.from("users_data").upsert(rows,{onConflict:"id"});
+      }
+      if(k===SK.w && Array.isArray(v) && v.length > 0){
+        const rows = v.map((w:any)=>({
+          id:w.id, competition_id:w.competitionId, student_id:w.studentId,
+          title:w.title, description:w.desc||"", video_url:w.videoUrl, thumb:w.thumb||"", at:w.at
+        }));
+        await supabase.from("works").upsert(rows,{onConflict:"id"});
+      }
+      if(k===SK.e && Array.isArray(v) && v.length > 0){
+        const rows = v.map((e:any)=>({
+          id:e.id, work_id:e.workId, scores:e.scores, approved:e.approved||false, at:e.at
+        }));
+        await supabase.from("evaluations").upsert(rows,{onConflict:"id"});
+      }
+      if(k===SK.cert && Array.isArray(v) && v.length > 0){
+        const rows = v.map((c:any)=>({
+          id:c.id, work_id:c.workId, student_id:c.studentId, comp_id:c.compId,
+          comp_name:c.compName, score:c.score, rank:c.rank, grade:c.grade,
+          section:c.section, issued_at:c.issuedAt
+        }));
+        await supabase.from("certificates").upsert(rows,{onConflict:"id"});
+      }
+    } catch(err){ console.error("Supabase save error:", err); }
+  }, 100);
+}
 function tot(s:number[]){return s.reduce((a,b)=>a+b,0)}
 function slug(n:string){return n.trim().toLowerCase().replace(/[^a-z0-9\s]/g,"").replace(/\s+/g,".").replace(/^\.+|\.+$/g,"")}
 function mkUser(name:string,role:Role,grade:string,section:string,tid:string|undefined,users:User[]):User{
@@ -437,12 +473,62 @@ export default function App(){
     return () => data.subscription.unsubscribe();
   }, []);
 
-  // Load submissions stored in the cloud so they are visible on every device
+  // ═══ CLOUD SYNC: Load ALL data from Supabase on startup ═══
   useEffect(()=>{
-    fetch("/api/works").then(r=>r.ok?r.json():[]).then((cloud:Work[])=>{
-      if(!Array.isArray(cloud)||cloud.length===0)return;
-      setWorks(prev=>{const ids=new Set(cloud.map(w=>w.id));return[...cloud,...prev.filter(w=>!ids.has(w.id))]});
-    }).catch(()=>{});
+    async function loadFromSupabase(){
+      try {
+        const {data:dbUsers} = await supabase.from("users_data").select("*");
+        if(dbUsers && dbUsers.length > 0){
+          const mapped = dbUsers.map((u:any)=>({
+            id:u.id, fullName:u.full_name, role:u.role, grade:u.grade,
+            section:u.section, teacherId:u.teacher_id, username:u.username,
+            password:u.password, createdAt:u.created_at||"", active:u.active!==false
+          }));
+          setUsers(prev=>{
+            const ids=new Set(mapped.map((u:any)=>u.id));
+            const merged=[...mapped,...prev.filter(u=>!ids.has(u.id))];
+            localStorage.setItem(SK.u,JSON.stringify(merged));
+            return merged;
+          });
+        }
+        const {data:dbWorks} = await supabase.from("works").select("*").order('at',{ascending:false});
+        if(dbWorks && dbWorks.length > 0){
+          const mapped = dbWorks.map((w:any)=>({
+            id:w.id, competitionId:w.competition_id, studentId:w.student_id,
+            title:w.title, desc:w.description||"", videoUrl:w.video_url, thumb:w.thumb||"", at:w.at||new Date().toISOString()
+          }));
+          setWorks(prev=>{
+            const ids=new Set(mapped.map((w:any)=>w.id));
+            const merged=[...mapped,...prev.filter(w=>!ids.has(w.id))];
+            localStorage.setItem(SK.w,JSON.stringify(merged));
+            return merged;
+          });
+        }
+        const {data:dbEvals} = await supabase.from("evaluations").select("*");
+        if(dbEvals && dbEvals.length > 0){
+          const mapped = dbEvals.map((e:any)=>({
+            id:e.id, workId:e.work_id, scores:e.scores||[], at:e.at||new Date().toISOString(), approved:e.approved||false
+          }));
+          setEvals(prev=>{
+            const ids=new Set(mapped.map((e:any)=>e.id));
+            return [...mapped,...prev.filter(e=>!ids.has(e.id))];
+          });
+        }
+        const {data:dbCerts} = await supabase.from("certificates").select("*");
+        if(dbCerts && dbCerts.length > 0){
+          const mapped = dbCerts.map((c:any)=>({
+            id:c.id, workId:c.work_id, studentId:c.student_id, compId:c.comp_id,
+            compName:c.comp_name, score:c.score, rank:c.rank, grade:c.grade,
+            section:c.section, issuedAt:c.issued_at
+          }));
+          setCerts(prev=>{
+            const ids=new Set(mapped.map((c:any)=>c.id));
+            return [...mapped,...prev.filter(c=>!ids.has(c.id))];
+          });
+        }
+      } catch(err){ console.error("Supabase load error:", err); }
+    }
+    loadFromSupabase();
   },[]);
 
   useEffect(()=>{sv(SK.u,users)},[users]);
