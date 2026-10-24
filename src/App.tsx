@@ -9,7 +9,8 @@ type Role = "teacher" | "student";
 type View = "home"|"showcase"|"classBoard"|"allWorks"|"winners"|"adminLogin"|"admin"|"teacherLogin"|"teacher"|"studentLogin"|"student";
 type User = { id:string; fullName:string; role:Role; grade:string; section:string; teacherId?:string; username:string; password:string; createdAt:string; active:boolean };
 type Comp = { id:string; nameAr:string; nameEn:string; logoUrl:string; grades:string[]; rulesAr:string; rulesEn:string; closingDate:string; certDate:string; started:boolean; archived:boolean; criteria:string[]; evalCode:string };
-type Work = { id:string; competitionId:string; studentId:string; title:string; desc:string; videoUrl:string; thumb:string; at:string };
+type WorkStatus = "pending" | "approved";
+type Work = { id:string; competitionId:string; studentId:string; title:string; desc:string; videoUrl:string; thumb:string; at:string; status?:WorkStatus; approvedBy?:string; approvedAt?:string };
 type Ev = { id:string; workId:string; scores:number[]; at:string; approved?:boolean };
 type Like = { workId:string; type:"friend"|"parent"|"teacher"; name:string; at:string };
 type Cert = { id:string; workId:string; studentId:string; compId:string; compName:string; score:number; rank:number; grade:string; section:string; issuedAt:string };
@@ -76,6 +77,40 @@ const COMP_PRESETS: CompPreset[] = [
     "Delivery Style • أسلوب الإلقاء","Time Management • إدارة الوقت","Teamwork • العمل الجماعي","Overall Impact • التأثير العام"
   ]},
 ];
+
+
+/* ═══════ STANDARD COMPETITION RULES (fixed template, editable by admin) ═══════ */
+const RULE_LIMITS_AR = "• مدة الفيديو: 3 دقائق كحد أقصى.\n• الحد الأقصى لحجم الفيديو: 50 ميجابايت (حد التخزين السحابي الحالي).";
+const RULE_LIMITS_EN = "• Maximum video duration: 3 minutes.\n• Maximum video file size: 50 MB (current cloud storage limit).";
+
+function ruleTemplateAr(nameAr:string){
+  return `قواعد مسابقة «${nameAr}»\n`
+    + "١- الالتزام بموضوع المسابقة والضوابط المعلنة.\n"
+    + "٢- أن يكون العمل من إنتاج الطالب نفسه.\n"
+    + "٣- تصوير الفيديو أفقيًا وبإضاءة وصوت واضحين.\n"
+    + "٤- ذكر اسم الطالب وصفه في بداية الفيديو.\n"
+    + "٥- أن يكون الفيديو بصيغة MP4 أو MOV.\n"
+    + "٦- لا يُعرض الفيديو للجميع إلا بعد اعتماد أحد المعلمين.\n"
+    + "٧- لا يُقبل أي عمل بعد تاريخ إغلاق المسابقة.\n"
+    + RULE_LIMITS_AR;
+}
+function ruleTemplateEn(nameEn:string){
+  return `Rules for "${nameEn}"\n`
+    + "1- Follow the competition topic and the published guidelines.\n"
+    + "2- The submitted work must be the student's own.\n"
+    + "3- Record the video in landscape with clear light and sound.\n"
+    + "4- State your full name and grade at the start of the video.\n"
+    + "5- Accepted formats: MP4 or MOV.\n"
+    + "6- A submission stays locked until a teacher approves it.\n"
+    + "7- No submissions are accepted after the closing date.\n"
+    + RULE_LIMITS_EN;
+}
+function rulesForPreset(idx?:number, nameAr?:string, nameEn?:string){
+  const preset = (idx!==undefined && !isNaN(idx)) ? COMP_PRESETS[idx] : undefined;
+  const ar = preset?.nameAr ?? nameAr ?? "المسابقة";
+  const en = preset?.nameEn ?? nameEn ?? "Competition";
+  return { ar: ruleTemplateAr(ar), en: ruleTemplateEn(en) };
+}
 
 function getClassColor(grade: string) {
   const colors = [
@@ -177,7 +212,10 @@ function sv(k:string,v:any){
         const rows = v.map((w:any)=>({
           id:String(w.id), competition_id:String(w.competitionId||""), student_id:String(w.studentId||""),
           title:w.title||"Untitled", desc:w.desc||"", video_url:w.videoUrl||"", thumb:w.thumb||"",
-          at: validDate(w.at)
+          at: validDate(w.at),
+          status:w.status==="approved"?"approved":"pending",
+          approved_by:w.approvedBy||null,
+          approved_at:w.approvedAt?validDate(w.approvedAt):null
         }));
         const {error} = await supabase.from("works_cloud").upsert(rows,{onConflict:"id"});
         if(error) console.error("works upsert:", error.message);
@@ -244,6 +282,92 @@ function SecureVideo(props: React.VideoHTMLAttributes<HTMLVideoElement> & { path
   }
 
   return <video {...videoProps} src={url} />;
+}
+
+
+/* ═══════ REVIEW / APPROVAL RULES ═══════ */
+const MAX_VIDEO_MB = 50;
+const MAX_VIDEO_SECONDS = 180; // 3 minutes — matches the current Supabase storage tier
+const isApproved = (w:Work)=> w.status === "approved";
+
+function StatusPill({w}:{w:Work}){
+  if(isApproved(w)){
+    return <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-black text-emerald-200">✅ Approved • معتمد{w.approvedBy?` · ${w.approvedBy}`:""}</span>;
+  }
+  return <span className="inline-flex items-center gap-1.5 rounded-full border border-[#FDB51F]/40 bg-[#FDB51F]/15 px-2.5 py-1 text-[10px] font-black text-[#FFE29A]">⏳ Waiting Teachers Approval 1st</span>;
+}
+
+/* Teacher approves a submission by typing their own username */
+function TeacherApproveModal({work,users,setWorks,onClose}:{work:Work;users:User[];setWorks:React.Dispatch<React.SetStateAction<Work[]>>;onClose:()=>void}){
+  const[username,setUsername]=useState(""); const[err,setErr]=useState(""); const[busy,setBusy]=useState(false);
+  async function submit(e:React.FormEvent){
+    e.preventDefault();
+    const uname=username.trim().toLowerCase();
+    if(!uname){setErr("أدخل اسم المستخدم • Enter your teacher username");return}
+    setBusy(true); setErr("");
+    try{
+      let teacher=users.find(x=>x.role==="teacher" && String(x.username).toLowerCase()===uname && x.active!==false);
+      if(!teacher && isSupabaseConfigured){
+        const{data,error}=await supabase.from("accounts").select("*").ilike("username",uname).limit(20);
+        if(error) console.warn("approval lookup:",error.message);
+        const row=((data||[]) as any[]).find(r=>r.role==="teacher" && r.active!==false);
+        if(row) teacher={id:row.id,fullName:row.full_name||row.username,role:"teacher",grade:row.grade||"",section:row.section||"",teacherId:undefined,username:row.username,password:String(row.password??""),createdAt:"",active:true};
+      }
+      if(!teacher){setErr("لا يوجد معلم مفعّل بهذا الاسم • No active teacher with that username");setBusy(false);return}
+      if(teacher.id===work.studentId){setErr("لا يمكن للمعلم اعتماد فيديو خاص به • A teacher cannot approve their own upload");setBusy(false);return}
+      setWorks(p=>p.map(x=>x.id===work.id?{...x,status:"approved" as WorkStatus,approvedBy:teacher!.fullName,approvedAt:new Date().toISOString()}:x));
+      onClose();
+    }catch(e:any){setErr("تعذر الاعتماد • "+(e?.message||"error"))}
+    finally{setBusy(false)}
+  }
+  return(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md" onClick={onClose}>
+      <div className="w-full max-w-md rounded-[2rem] border border-[#FDB51F]/25 bg-[#0f1535] p-6 shadow-2xl" onClick={e=>e.stopPropagation()}>
+        <div className="text-center mb-4">
+          <div className="text-3xl mb-2">🔓</div>
+          <h3 className="text-lg font-black text-white">Approve Submission</h3>
+          <p className="text-sm text-white/50">اعتماد الفيديو — للمعلم فقط</p>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 mb-4">
+          <p className="text-sm font-black text-white line-clamp-1">{work.title}</p>
+          <p className="text-xs text-white/40 mt-0.5">{users.find(u=>u.id===work.studentId)?.fullName||"—"}</p>
+        </div>
+        <form onSubmit={submit} className="space-y-3">
+          <div><FL>Teacher Username • اسم مستخدم المعلم</FL><Inp value={username} onChange={e=>{setUsername(e.target.value);setErr("")}} placeholder="e.g. heba" autoFocus autoComplete="off"/></div>
+          {err&&<div className="rounded-xl bg-rose-500/10 border border-rose-400/20 px-4 py-3 text-sm font-bold text-rose-200">{err}</div>}
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-black text-white/70">Cancel</button>
+            <button type="submit" disabled={busy} className={cn("flex-1 rounded-2xl py-3 text-sm font-black",busy?"bg-white/10 text-white/30":"bg-emerald-500 text-slate-950 hover:bg-emerald-400")}>{busy?"Checking…":"✅ Approve"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ApprovalGate({work,users,setWorks}:{work:Work;users:User[];setWorks:React.Dispatch<React.SetStateAction<Work[]>>}){
+  const[open,setOpen]=useState(false);
+  return(<>
+    <button onClick={()=>setOpen(true)} className="rounded-full border border-[#FDB51F]/40 bg-[#FDB51F]/15 px-4 py-2 text-[11px] font-black text-[#FFE29A] hover:bg-[#FDB51F]/25 transition">🔓 Teacher approve • اعتماد</button>
+    {open&&<TeacherApproveModal work={work} users={users} setWorks={setWorks} onClose={()=>setOpen(false)}/>}
+  </>);
+}
+
+/* Video area: locked until a teacher approves */
+function WorkVideo({w,users,setWorks}:{w:Work;users:User[];setWorks:React.Dispatch<React.SetStateAction<Work[]>>}){
+  if(isApproved(w)){
+    return <SecureVideo path={w.videoUrl} poster={w.thumb} controls preload="metadata" className="w-full aspect-video object-cover"/>;
+  }
+  return(
+    <div className="relative">
+      <div className="w-full aspect-video bg-[#0b1028] grid place-items-center"><span className="text-5xl opacity-25">🔒</span></div>
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-[#0b1028]/90 p-4 text-center">
+        <p className="text-sm font-black text-[#FFE29A]">⏳ Waiting Teachers Approval 1st</p>
+        <p className="text-[11px] font-bold leading-5 text-white/50" dir="rtl">الفيديو مغلق لحين معاينته من أحد المعلمين<br/>Locked until a teacher reviews it</p>
+        <ApprovalGate work={w} users={users} setWorks={setWorks}/>
+      </div>
+    </div>
+  );
 }
 
 /* ═══════ SHARED UI ═══════ */
@@ -376,11 +500,12 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
   return(
     <article className="group rounded-[2rem] border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden flex flex-col hover:-translate-y-0.5 transition-all">
       <div className="relative bg-black">
-        <SecureVideo path={w.videoUrl} poster={w.thumb} controls preload="metadata" className="w-full aspect-video object-cover"/>
+        <WorkVideo w={w} users={users} setWorks={setWorks}/>
         {(isWinner||starOk)&&<div className="absolute top-2 right-2 bg-[#FDB51F] text-slate-900 text-xs font-black px-3 py-1 rounded-full shadow-lg">🏆 Winner</div>}
       </div>
       <div className="p-5 flex-1 flex flex-col">
         {comp&&<div className="text-[10px] font-black uppercase tracking-[0.22em] text-[#1697E8] mb-2">{comp.nameEn}</div>}
+        <div className="mb-2 flex flex-wrap items-center gap-2"><StatusPill w={w}/></div>
         <h3 className="text-lg font-black text-white leading-snug">{w.title}</h3>
         {w.desc&&<p className="mt-2 text-sm text-white/50 leading-relaxed line-clamp-2">{w.desc}</p>}
         <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-3">
@@ -390,7 +515,9 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
             <p className="text-xs text-white/40">{stu.grade}{teacher?` • Teacher: ${teacher.fullName}`:""}</p>
           </div>
           {/* Gold Star promote button */}
-          {!isWinner&&!starOk?(
+          {!isApproved(w)?(
+            <span className="ml-auto text-[10px] font-bold text-white/30">⭐ after approval</span>
+          ):!isWinner&&!starOk?(
             <button onClick={()=>setStarPrompt(true)} title="Promote to Winners • تحويل للفائزين" className="ml-auto text-2xl hover:scale-125 transition-transform opacity-50 hover:opacity-100">⭐</button>
           ):(
             <div className="ml-auto text-2xl" title="Winner!">🌟</div>
@@ -414,7 +541,9 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
           </div>
         )}
         <div className="mt-auto pt-4 flex flex-col gap-2">
-          {ev?(
+          {!isApproved(w)?(
+            <div className="w-full rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-sm font-bold text-[#FFE29A]/80 text-center">⏳ Awaiting teacher approval before evaluation • بانتظار الاعتماد</div>
+          ):ev?(
             <button onClick={()=>setViewEval(true)} className="w-full rounded-2xl bg-emerald-500/15 border border-emerald-400/20 px-4 py-3 text-sm font-black text-emerald-200 hover:bg-emerald-500/25 transition">
               📊 View Score ({tot(ev.scores)}/100) • مشاهدة التقييم
             </button>
@@ -424,7 +553,7 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
             </button>
           )}
           {/* Edit existing eval */}
-          {ev&&(
+          {isApproved(w)&&ev&&(
             <button onClick={()=>{setCodeMode("eval");setShowCodePrompt(true)}} className="w-full rounded-2xl bg-white/5 border border-white/10 px-4 py-2.5 text-xs font-bold text-white/30 hover:text-[#FDB51F] hover:border-[#FDB51F]/30 transition cursor-pointer text-center">
               ✏️ Edit Evaluation • تعديل التقييم
             </button>
@@ -524,7 +653,9 @@ export default function App(){
         if(dbWorks && dbWorks.length > 0){
           const mapped = dbWorks.map((w:any)=>({
             id:w.id, competitionId:w.competition_id, studentId:w.student_id,
-            title:w.title, desc:w.desc||"", videoUrl:w.video_url, thumb:w.thumb||"", at:w.at||new Date().toISOString()
+            title:w.title, desc:w.desc||"", videoUrl:w.video_url, thumb:w.thumb||"", at:w.at||new Date().toISOString(),
+            status:(w.status==="approved"?"approved":"pending") as WorkStatus,
+            approvedBy:w.approved_by||undefined, approvedAt:w.approved_at||undefined
           }));
           setWorks(prev=>{
             const ids=new Set(mapped.map((w:any)=>w.id));
@@ -638,28 +769,6 @@ function HomePage({onStart,onAdmin,onStudent}:{onStart:()=>void;onAdmin:()=>void
 
     <main className="relative z-10 mx-auto max-w-7xl px-5 pb-16 pt-8 sm:px-6 lg:pt-12">
 
-      {/* ── SCHOOL BRAND: larger logo with the title beneath it ── */}
-      <section aria-label="School brand" className="relative mx-auto mb-8 max-w-4xl sm:mb-10">
-        <div className="pointer-events-none absolute inset-x-0 -top-8 mx-auto h-44 w-2/3 rounded-full bg-[#FDB51F]/15 blur-3xl" aria-hidden="true"/>
-        <div className="relative flex flex-col items-center text-center">
-          <div className="rounded-[1.5rem] border border-white/15 bg-white px-4 py-3 shadow-[0_24px_70px_-24px_rgba(0,0,0,0.85)] ring-1 ring-white/10 sm:rounded-[1.75rem] sm:px-6 sm:py-4">
-            <img
-              src="/gems-logo.png"
-              alt="GEMS World Academy Dubai — أكاديمية جيمس العالمية"
-              className="block h-20 w-auto max-w-[86vw] object-contain sm:h-24 lg:h-28 xl:h-32"
-              loading="eager"
-            />
-          </div>
-          <div className="mt-4 flex flex-col items-center gap-1.5 sm:mt-5">
-            <p className="flex items-center gap-2 text-lg font-black leading-tight tracking-tight text-[#FDB51F] sm:text-2xl lg:text-[1.7rem]">
-              <span aria-hidden="true">🏆</span>
-              Arabic &amp; Islamic Champions
-            </p>
-            <p className="text-base font-bold leading-tight text-white/85 sm:text-lg lg:text-xl" dir="rtl">أبطال العربية والإسلامية</p>
-          </div>
-        </div>
-      </section>
-
       {/* ── HERO PHOTO: full, uncropped, taller banner ── */}
       <section aria-label="GWA Champions" className="relative mx-auto max-w-6xl">
         <div className="pointer-events-none absolute -inset-3 rounded-[2.5rem] bg-gradient-to-br from-[#1697E8]/25 via-[#FDB51F]/12 to-transparent blur-3xl sm:-inset-5" aria-hidden="true"/>
@@ -672,6 +781,19 @@ function HomePage({onStart,onAdmin,onStudent}:{onStart:()=>void;onAdmin:()=>void
               loading="eager"
             />
           </div>
+          <figcaption className="mt-3 flex flex-col items-center gap-4 rounded-[1.5rem] border border-white/10 bg-white/[0.04] px-5 py-4 text-center backdrop-blur-xl sm:mt-4 sm:flex-row sm:justify-between sm:rounded-[1.75rem] sm:px-7 sm:py-5 sm:text-left">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#FDB51F]/15 text-2xl ring-1 ring-[#FDB51F]/30">🏆</span>
+              <div>
+                <p className="text-base font-black leading-tight tracking-tight text-white sm:text-2xl">Arabic &amp; Islamic Champions</p>
+                <p className="mt-0.5 text-sm font-bold text-[#FFE29A] sm:text-lg" dir="rtl">أبطال العربية والإسلامية</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white/60">GEMS World Academy Dubai</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold text-white/60" dir="rtl">دبي — الإمارات</span>
+            </div>
+          </figcaption>
         </figure>
       </section>
 
@@ -734,7 +856,7 @@ function HomePage({onStart,onAdmin,onStudent}:{onStart:()=>void;onAdmin:()=>void
    2. SHOWCASE
    ════════════════════════════════════ */
 function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,certs,onPromote,onBack,onParticipate,onWinners,onAllWorks}:{comps:Comp[];users:User[];works:Work[];evals:Ev[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void;onClass:(c:ClassInfo)=>void;onParticipate:(id:string)=>void;onWinners:()=>void;onAllWorks:()=>void}){
-  const evaluatedCount=useMemo(()=>works.filter(w=>evals.some(e=>e.workId===w.id)).length,[works,evals]);
+  const evaluatedCount=useMemo(()=>works.filter(w=>isApproved(w)&&evals.some(e=>e.workId===w.id)).length,[works,evals]);
   const active=useMemo(()=>comps.filter(c=>c.started&&!c.archived),[comps]);
   const[selCompId,setSelCompId]=useState<string|null>(null);
   const[gradeFilter,setGradeFilter]=useState<string|null>(null);
@@ -945,7 +1067,7 @@ function WinnersPage({comps,works,evals,users,likes,setLikes,certs,onPromote,adm
 
   const rankingsForComp=useMemo(()=>{
     if(!selComp)return[];
-    const scored=works.filter(w=>w.competitionId===selComp.id&&evals.some(e=>e.workId===w.id)).map(w=>{
+    const scored=works.filter(w=>w.competitionId===selComp.id&&isApproved(w)&&evals.some(e=>e.workId===w.id)).map(w=>{
       const ev=evals.find(e=>e.workId===w.id)!; const stu=users.find(s=>s.id===w.studentId);
       return{work:w,score:tot(ev.scores),stu};
     }).filter(x=>x.stu).sort((a,b)=>b.score-a.score).slice(0,20);
@@ -1119,7 +1241,7 @@ function StudentLoginPage({users,onBack,onOk}:{users:User[];onBack:()=>void;onOk
     setLoading(true);
     try{
       // 1) Cached/synced list (works offline and on repeat visits)
-      let s=users.find(x=>norm(x.username)===norm(username) && String(x.password)===password && (x.role==="student") && x.active!==false);
+      let s=users.find(x=>norm(x.username)===norm(username) && String(x.password)===password && (x.role==="student"||x.role==="teacher") && x.active!==false);
 
       // 2) Direct cloud check (fresh device, or account created on another device)
       if(!s){
@@ -1127,10 +1249,10 @@ function StudentLoginPage({users,onBack,onOk}:{users:User[];onBack:()=>void;onOk
         if(cloud.error && cloud.error!=="not-configured") console.warn("accounts lookup:", cloud.error);
         if(cloud.rows.length>0){
           const samePassword=cloud.rows.find(r=>String(r.password)===password);
-          if(samePassword && samePassword.role==="student" && samePassword.active!==false){
+          if(samePassword && (samePassword.role==="student"||samePassword.role==="teacher") && samePassword.active!==false){
             s=samePassword;
           }else if(samePassword){
-            setErr("هذا الحساب ليس حساب طالب • This account is not a student account");
+            setErr("هذا الحساب غير مفعّل • This account is inactive");
             setLoading(false);return;
           }else{
             setErr("كلمة المرور غير صحيحة • Incorrect password");
@@ -1155,7 +1277,7 @@ function StudentLoginPage({users,onBack,onOk}:{users:User[];onBack:()=>void;onOk
 
   return(
     <div className="relative min-h-screen bg-[#0d1230] flex items-center justify-center px-6"><Bg/>
-      <div className="relative w-full max-w-md rounded-[2.4rem] border border-white/10 bg-white/5 p-8 backdrop-blur-xl shadow-2xl"><button onClick={onBack} className="text-white/50 text-sm font-bold mb-6 hover:text-white">← Back</button><div className="flex flex-col items-center mb-8"><Logo/><h2 className="mt-5 text-2xl font-black text-white">Student Login • دخول الطالب</h2><p className="text-xs text-white/40 mt-2 text-center">Cloud accounts — same login on every device</p></div>
+      <div className="relative w-full max-w-md rounded-[2.4rem] border border-white/10 bg-white/5 p-8 backdrop-blur-xl shadow-2xl"><button onClick={onBack} className="text-white/50 text-sm font-bold mb-6 hover:text-white">← Back</button><div className="flex flex-col items-center mb-8"><Logo/><h2 className="mt-5 text-2xl font-black text-white">Student Login • دخول الطالب</h2><p className="text-xs text-white/40 mt-2 text-center">Cloud accounts — same login on every device</p><p className="text-[11px] text-[#FDB51F] mt-2 text-center font-bold">الطلاب والمعلمون يدخلون من هنا • Students &amp; teachers sign in here</p></div>
         <form onSubmit={sub} className="space-y-5"><div><FL>Username • اسم المستخدم</FL><Inp value={u} onChange={e=>setU(e.target.value)} placeholder="mariam.salem" autoComplete="username"/></div><div><FL>Password • كلمة المرور</FL><Inp type="password" value={p} onChange={e=>setP(e.target.value)} autoComplete="current-password"/></div>
           {err&&<div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200 font-bold">{err}</div>}
           <button type="submit" disabled={loading} className={cn("w-full rounded-2xl px-5 py-4 text-base font-black shadow-lg shadow-[#FDB51F]/20",loading?"bg-white/10 text-white/30 cursor-not-allowed":"bg-[#FDB51F] text-slate-950 hover:bg-[#F7C84A]")}>{loading?"Signing in...":"Login 🎓"}</button></form></div>
@@ -1171,7 +1293,7 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
   const[tab,setTab]=useState<"users"|"export"|"comps"|"archive">("users");
   const fRef=useRef<HTMLInputElement>(null);
   const[name,setName]=useState(""); const[role,setRole]=useState<Role>("student"); const[grade,setGrade]=useState("Grade 6"); const[sec,setSec]=useState("X"); const[tid,setTid]=useState(""); const[umsg,setUmsg]=useState("");
-  const[nAr,setNAr]=useState(""); const[nEn,setNEn]=useState(""); const[cGrades,setCGrades]=useState<string[]>(["Grade 6"]); const[rAr,setRAr]=useState(""); const[rEn,setREn]=useState(""); const[cClose,setCClose]=useState("2026-06-01"); const[cCert,setCCert]=useState("2026-06-15"); const[cmsg,setCmsg]=useState(""); const[impMsg,setImpMsg]=useState("");
+  const[nAr,setNAr]=useState(""); const[nEn,setNEn]=useState(""); const[cGrades,setCGrades]=useState<string[]>(["Grade 6"]); const[rAr,setRAr]=useState(()=>ruleTemplateAr("المسابقة")); const[rEn,setREn]=useState(()=>ruleTemplateEn("Competition")); const[cClose,setCClose]=useState("2026-06-01"); const[cCert,setCCert]=useState("2026-06-15"); const[cmsg,setCmsg]=useState(""); const[impMsg,setImpMsg]=useState("");
   const[compCriteria,setCompCriteria]=useState<string[]>([...DEFAULT_CRITERIA]);
   const[selPreset,setSelPreset]=useState<string>("");
   const[showPwModal,setShowPwModal]=useState(false);
@@ -1179,16 +1301,31 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
 
   function applyPreset(idx:string){
     setSelPreset(idx);
-    if(idx==="custom"){setNAr("");setNEn("");setCompCriteria([...DEFAULT_CRITERIA]);return}
+    if(idx==="custom"){
+      setNAr("");setNEn("");
+      setCompCriteria([...DEFAULT_CRITERIA]);
+      const t=rulesForPreset(undefined,"المسابقة","Competition");
+      setRAr(t.ar); setREn(t.en);
+      return;
+    }
     const p=COMP_PRESETS[Number(idx)];
-    if(p){setNAr(p.nameAr);setNEn(p.nameEn);setCompCriteria([...p.criteria])}
+    if(p){
+      setNAr(p.nameAr);setNEn(p.nameEn);setCompCriteria([...p.criteria]);
+      const t=rulesForPreset(Number(idx));
+      setRAr(t.ar); setREn(t.en);
+    }
   }
 
   function createUser(e:React.FormEvent){e.preventDefault();if(!name.trim()){setUmsg("Enter name");return}if(role==="student"&&!tid){setUmsg("Select teacher");return}
     const u=mkUser(name,role,grade,sec,role==="student"?tid:undefined,users);setUsers(p=>[u,...p]);setUmsg(`✅ ${u.username} / ${u.password}`);setName("")}
   function createComp(e:React.FormEvent){e.preventDefault();if(!nAr.trim()||!nEn.trim()){setCmsg("Enter both names");return}
     const code=Math.random().toString(36).slice(2,8).toUpperCase();
-    setComps(p=>[{id:mid("c"),nameAr:nAr,nameEn:nEn,logoUrl:"/gems-logo.png",grades:cGrades,rulesAr:rAr,rulesEn:rEn,closingDate:cClose,certDate:cCert,started:true,archived:false,criteria:compCriteria,evalCode:code},...p]);setCmsg(`✅ Created • Evaluation Code: ${code}`);setNAr("");setNEn("");setRAr("");setREn("")}
+    const t=rulesForPreset(selPreset&&selPreset!=="custom"?Number(selPreset):undefined,nAr,nEn);
+    const finalAr=(rAr.trim()||t.ar);
+    const finalEn=(rEn.trim()||t.en);
+    setComps(p=>[{id:mid("c"),nameAr:nAr,nameEn:nEn,logoUrl:"/gems-logo.png",grades:cGrades,rulesAr:finalAr,rulesEn:finalEn,closingDate:cClose,certDate:cCert,started:true,archived:false,criteria:compCriteria,evalCode:code},...p]);
+    setCmsg(`✅ Created • Evaluation Code: ${code}`);
+    setNAr("");setNEn("");setCompCriteria([...DEFAULT_CRITERIA]);setRAr(ruleTemplateAr("المسابقة"));setREn(ruleTemplateEn("Competition"))}
   function findCol(h:string[],p:string[]){for(let i=0;i<h.length;i++){const s=h[i].toLowerCase().replace(/[\s_\-().]+/g,"");for(const x of p)if(s===x||s.includes(x))return i}return -1}
   async function handleExcelUpload(e:React.ChangeEvent<HTMLInputElement>){const file=e.target.files?.[0];if(!file)return;
     try{const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:"array"});const raw=XLSX.utils.sheet_to_json<(string|number)[]>(wb.Sheets[wb.SheetNames[0]],{header:1,defval:""});if(raw.length<2){setImpMsg("⚠️ Empty file");return}
@@ -1303,8 +1440,12 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
                 </div>
                 <div className="grid grid-cols-2 gap-3"><div><FL>Arabic Name</FL><Inp value={nAr} onChange={e=>setNAr(e.target.value)} dir="rtl" placeholder="مسابقة..."/></div><div><FL>English Name</FL><Inp value={nEn} onChange={e=>setNEn(e.target.value)} placeholder="Competition..."/></div></div>
                 <div><FL>Grades</FL><div className="flex flex-wrap gap-2">{GRADES.map(g=><button key={g} type="button" onClick={()=>setCGrades(p=>p.includes(g)?p.filter(x=>x!==g):[...p,g])} className={cn("rounded-full px-3 py-1.5 text-xs font-bold border transition",cGrades.includes(g)?"bg-[#FDB51F] text-slate-950 border-[#FDB51F]":"bg-white/5 text-white/50 border-white/10")}>{g}</button>)}</div></div>
-                <div><FL>Rules (Arabic)</FL><TA rows={3} value={rAr} onChange={e=>setRAr(e.target.value)} dir="rtl"/></div>
-                <div><FL>Rules (English)</FL><TA rows={3} value={rEn} onChange={e=>setREn(e.target.value)}/></div>
+                <div className="rounded-2xl border border-[#FDB51F]/20 bg-[#FDB51F]/8 px-4 py-3">
+                  <p className="text-[11px] font-bold leading-5 text-[#FFE29A]">📌 القواعد تُملأ تلقائياً من قالب ثابت قابل للتعديل، وتشمل مدة الفيديو (3 دقائق) والحد الأقصى للحجم (50MB).</p>
+                  <button type="button" onClick={()=>{const t=rulesForPreset(selPreset&&selPreset!=="custom"?Number(selPreset):undefined,nAr||"المسابقة",nEn||"Competition");setRAr(t.ar);setREn(t.en)}} className="mt-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] font-black text-white/70 hover:bg-white/10">↺ إعادة القالب القياسي • Reset template</button>
+                </div>
+                <div><FL>Rules (Arabic) • قواعد المسابقة</FL><TA rows={8} value={rAr} onChange={e=>setRAr(e.target.value)} dir="rtl"/></div>
+                <div><FL>Rules (English)</FL><TA rows={8} value={rEn} onChange={e=>setREn(e.target.value)}/></div>
                 <div className="grid grid-cols-2 gap-3"><div><FL>Closing Date</FL><Inp type="date" value={cClose} onChange={e=>setCClose(e.target.value)}/></div><div><FL>Certs Date</FL><Inp type="date" value={cCert} onChange={e=>setCCert(e.target.value)}/></div></div>
                 {cmsg&&<div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">{cmsg}</div>}
                 <button type="submit" className="w-full rounded-2xl bg-[#FDB51F] text-slate-950 font-black py-3.5 hover:bg-[#F7C84A] shadow-lg">Save Competition 🏆</button>
@@ -1404,8 +1545,10 @@ function ConsentModal({student,compAr,compEn,onOk,onNo}:{student:User;compAr:str
       <div className="w-full max-w-2xl rounded-[2.5rem] border border-white/10 bg-[#0a1128] shadow-2xl overflow-hidden max-h-[95vh] flex flex-col"><div className="h-1.5 w-full bg-gradient-to-r from-[#FDB51F] via-[#1697E8] to-[#10B09B] shrink-0"/>
         <div className="p-8 overflow-y-auto"><div className="text-center mb-6"><div className="text-4xl mb-3">📋</div><h2 className="text-2xl font-black text-white">Participation Consent</h2><p className="text-sm text-white/50">إقرار وموافقة المشارك</p></div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-5 flex items-center gap-4"><span className="text-2xl">🎓</span><div><p className="font-black text-white">{student.fullName}</p><p className="text-sm text-white/50">{student.grade} • Section {student.section}</p></div></div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-5"><div className="border-l-4 border-[#1697E8] pl-4"><p className="text-sm font-black text-[#1697E8] mb-2">📌 Declaration in English</p><p className="text-sm leading-7 text-white/70">I, <b className="text-white">{student.fullName}</b>, confirm my voluntary participation in <b className="text-[#1697E8]">"{compEn}"</b>.</p><ul className="mt-2 space-y-1 text-sm leading-7 text-white/55"><li>✅ My video will be evaluated fairly by a panel of teachers.</li><li>✅ My work will appear on the Champions Celebration Page.</li><li>✅ The submitted work is my own original creation.</li></ul></div>
-            <div className="border-t border-white/10"/><div dir="rtl" className="border-r-4 border-[#FDB51F] pr-4"><p className="text-sm font-black text-[#FDB51F] mb-2">📌 إقرار بالعربية</p><p className="text-sm leading-8 text-white/80">أنا <b className="text-white">{student.fullName}</b>، أُقر بمشاركتي الطوعية في مسابقة <b className="text-[#FDB51F]">«{compAr}»</b>.</p><ul className="mt-2 space-y-1 text-sm leading-8 text-white/70"><li>✅ أعلم أن الفيديو سيُعرض للتقييم العادل من لجنة المعلمين.</li><li>✅ أعلم أن مشاركتي ستظهر في صفحة الاحتفاء بالأبطال.</li><li>✅ أؤكد أن العمل المقدم هو عملي الأصلي.</li></ul></div></div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-5"><div className="border-l-4 border-[#1697E8] pl-4"><p className="text-sm font-black text-[#1697E8] mb-2">📌 Declaration in English</p><p className="text-sm leading-7 text-white/70">I, <b className="text-white">{student.fullName}</b>, confirm my voluntary participation in <b className="text-[#1697E8]">"{compEn}"</b>.</p><ul className="mt-2 space-y-1 text-sm leading-7 text-white/55"><li>✅ My video will be evaluated fairly by a panel of teachers.</li><li>⚠️ My video stays locked ("Waiting Teachers Approval") until a teacher approves it — then it appears on the Champions page.</li>
+                <li>⏱ Max duration 3 minutes • 📦 Max file size 50 MB.</li><li>✅ The submitted work is my own original creation.</li></ul></div>
+            <div className="border-t border-white/10"/><div dir="rtl" className="border-r-4 border-[#FDB51F] pr-4"><p className="text-sm font-black text-[#FDB51F] mb-2">📌 إقرار بالعربية</p><p className="text-sm leading-8 text-white/80">أنا <b className="text-white">{student.fullName}</b>، أُقر بمشاركتي الطوعية في مسابقة <b className="text-[#FDB51F]">«{compAr}»</b>.</p><ul className="mt-2 space-y-1 text-sm leading-8 text-white/70"><li>✅ أعلم أن الفيديو سيُعرض للتقييم العادل من لجنة المعلمين.</li><li>⚠️ أعلم أن الفيديو يبقى مغلقاً بعبارة «بانتظار اعتماد المعلم» حتى يعتمده أحد المعلمين ثم يظهر للجميع.</li>
+                <li>⏱ مدة الفيديو ٣ دقائق كحد أقصى • 📦 الحد الأقصى للحجم 50 ميجابايت.</li><li>✅ أؤكد أن العمل المقدم هو عملي الأصلي.</li></ul></div></div>
           <label className="mt-5 flex cursor-pointer items-start gap-4 rounded-2xl border border-[#FDB51F]/20 bg-[#FDB51F]/8 p-4 hover:bg-[#FDB51F]/12"><input type="checkbox" checked={ok} onChange={e=>setOk(e.target.checked)} className="mt-1 h-5 w-5 accent-[#FDB51F]"/><div><p className="text-sm font-black text-[#FFE29A]">I confirm and agree to all terms above.</p><p className="text-sm text-white/40 mt-0.5" dir="rtl">أؤكد رغبتي في المشاركة وأوافق على جميع البنود.</p></div></label>
           <div className="mt-5 flex gap-3"><button onClick={onNo} className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm font-black text-white/70 hover:bg-white/10">Decline</button><button disabled={!ok} onClick={onOk} className={cn("flex-[2] rounded-2xl px-5 py-4 text-sm font-black shadow-lg",ok?"bg-[#FDB51F] text-slate-950 hover:bg-[#F7C84A]":"cursor-not-allowed bg-white/10 text-white/30")}>✅ Confirm & Upload</button></div>
         </div>
@@ -1419,6 +1562,8 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
   // or loosely match "5" vs "Grade 5"
   const avail=useMemo(()=>{
     const active = comps.filter(c=>c.started&&!c.archived);
+    // Teachers signing in through the Student portal may upload to any active competition
+    if(student.role==="teacher") return active;
     const hasExact = active.filter(c=>c.grades.includes(student.grade));
     if (hasExact.length > 0) return hasExact;
     
@@ -1438,10 +1583,30 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
   const[title,setTitle]=useState(""); const[desc,setDesc]=useState(""); const[vidFile,setVidFile]=useState<File|null>(null); const[vidUrl,setVidUrl]=useState("");
   const[prog,setProg]=useState(0); const[upl,setUpl]=useState(false); const[msg,setMsg]=useState("");
   useEffect(()=>{if(selCompId)setCid(selCompId)},[selCompId]);
-  function onVid(e:React.ChangeEvent<HTMLInputElement>){const f=e.target.files?.[0];if(!f)return;setVidFile(f);setVidUrl(URL.createObjectURL(f))}
+  function onVid(e:React.ChangeEvent<HTMLInputElement>){
+    const f=e.target.files?.[0]; if(!f) return;
+    if(f.size > MAX_VIDEO_MB*1024*1024){
+      setMsg(`❌ حجم الفيديو ${(f.size/1048576).toFixed(1)}MB أكبر من الحد الأقصى ${MAX_VIDEO_MB}MB • File too large`);
+      setVidFile(null); setVidUrl(""); return;
+    }
+    const probe=document.createElement("video");
+    probe.preload="metadata";
+    probe.onloadedmetadata=()=>{
+      const dur=probe.duration||0;
+      if(dur > MAX_VIDEO_SECONDS+3){
+        setMsg(`❌ مدة الفيديو ${Math.round(dur)} ثانية أكبر من ${MAX_VIDEO_SECONDS/60} دقائق • Video longer than 3 minutes`);
+        setVidFile(null); setVidUrl("");
+      }else{
+        setMsg(""); setVidFile(f); setVidUrl(URL.createObjectURL(f));
+      }
+    };
+    probe.onerror=()=>{ setMsg(""); setVidFile(f); setVidUrl(URL.createObjectURL(f)); };
+    probe.src=URL.createObjectURL(f);
+  }
   async function submit(e:React.FormEvent){
     e.preventDefault();
     if(!cid || !title.trim() || !vidFile){setMsg("All fields required"); return}
+    if(vidFile.size > MAX_VIDEO_MB*1024*1024){setMsg(`❌ الحد الأقصى لحجم الفيديو ${MAX_VIDEO_MB}MB • File too large`); return}
     
     setUpl(true);
     setProg(0);
@@ -1459,7 +1624,8 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
         desc: desc.trim(),
         videoUrl,
         thumb: "",
-        at: new Date().toISOString()
+        at: new Date().toISOString(),
+        status: "pending" as WorkStatus
       };
       // Supabase is the source of truth; the legacy endpoint is best-effort only.
       try {
@@ -1472,7 +1638,7 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
 
       setWorks(p => [work, ...p]);
 
-      setMsg("🎉 Submitted! Your work will appear on the Champions page.");
+      setMsg("🎉 تم الإرسال! الفيديو الآن بانتظار اعتماد المعلم — Waiting Teachers Approval 1st");
       setTitle(""); setDesc(""); setVidFile(null); setVidUrl(""); setStep("idle");
     } catch (err: any) {
       setMsg("❌ Upload Error: " + err.message);
@@ -1531,7 +1697,7 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
       {step==="consent"&&selComp&&<ConsentModal student={student} compAr={selComp.nameAr} compEn={selComp.nameEn} onOk={()=>setStep("form")} onNo={()=>setStep("idle")}/>}
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center"><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#FDB51F]">Student Portal</div><h1 className="text-xl font-black">{student.fullName}</h1><p className="text-sm text-white/50">{student.grade} • {student.section}</p></div><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">Back</button></header>
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center"><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#FDB51F]">Student Portal</div>{student.role==="teacher"&&<div className="mt-1 inline-block rounded-full bg-[#FDB51F]/15 border border-[#FDB51F]/30 px-3 py-1 text-[10px] font-black text-[#FFE29A]">👩‍🏫 Teacher upload mode — uploads need another teacher's approval</div>}<h1 className="text-xl font-black">{student.fullName}</h1><p className="text-sm text-white/50">{student.grade} • {student.section}</p></div><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">Back</button></header>
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex flex-wrap gap-2 mb-8 bg-white/5 border border-white/10 rounded-2xl p-1.5">
           <button onClick={()=>setSTab("participate")} className={cn("rounded-xl px-5 py-3 text-sm font-black",sTab==="participate"?"bg-[#FDB51F] text-slate-950":"text-white/50")}>🎓 Participate</button>
@@ -1540,11 +1706,20 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
         </div>
         {sTab==="participate"&&(
           <div className="max-w-xl"><div className="rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
-            {step==="idle"&&(<><h2 className="text-xl font-black mb-4">Participate</h2><div className="space-y-4"><div><FL>Select Competition</FL><Sel value={cid} onChange={e=>{setCid(e.target.value);setMsg("")}}><option value="">{avail.length===0?"No active competitions for your grade":"— Select —"}</option>{avail.map(c=><option key={c.id} value={c.id}>{c.nameEn}</option>)}</Sel></div>{msg&&<div className="p-3 bg-emerald-500/10 border border-emerald-400/20 text-emerald-200 rounded-xl text-sm">{msg}</div>}<button disabled={!cid} onClick={()=>{setMsg("");setStep("consent")}} className={cn("w-full rounded-2xl px-5 py-4 text-sm font-black",cid?"bg-[#FDB51F] text-slate-950 hover:bg-[#F7C84A] shadow-lg":"cursor-not-allowed bg-white/10 text-white/30")}>📋 Read Consent & Participate</button></div></>)}
-            {step==="form"&&(<form onSubmit={submit} className="space-y-5"><div className="flex items-center gap-3 mb-2"><button type="button" onClick={()=>setStep("idle")} className="text-white/50 text-xs">← Back</button><p className="text-xs text-emerald-300 font-bold">✅ Consent Accepted</p></div><div><FL>Title</FL><Inp value={title} onChange={e=>setTitle(e.target.value)} placeholder="Work title"/></div><div><FL>📹 Upload Video</FL><label className={cn("flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed p-6 cursor-pointer transition",vidFile?"border-emerald-400/40 bg-emerald-500/5":"border-white/10 bg-white/5 hover:border-white/25")}><input type="file" accept="video/*" onChange={onVid} className="hidden"/>{vidFile?(<><span className="text-3xl">🎬</span><p className="font-black text-emerald-300">{vidFile.name}</p><video src={vidUrl} controls className="w-full max-h-28 rounded-xl mt-2"/></>):(<><span className="text-3xl">📹</span><p className="text-sm font-black text-white">Click to select</p><p className="text-xs text-white/40">MP4, MOV, AVI</p></>)}</label></div>{upl&&<div className="rounded-2xl border border-sky-400/20 bg-sky-500/10 p-5 text-center animate-pulse"><div className="flex items-center justify-center gap-3 text-sky-200"><span className="text-xl">📹</span><span className="text-sm font-black uppercase tracking-widest">Uploading Video...</span></div><p className="text-[10px] text-white/40 mt-1 uppercase font-bold tracking-tighter">Please do not close the browser</p></div>}<button type="submit" disabled={upl} className={cn("w-full rounded-2xl px-5 py-4 text-sm font-black shadow-lg",upl?"cursor-not-allowed bg-white/10 text-white/30":"bg-[#FDB51F] text-slate-950 hover:bg-[#F7C84A]")}>{upl?`${prog}%...`:"🚀 Submit Work"}</button></form>)}
+            {step==="idle"&&(<><h2 className="text-xl font-black mb-4">Participate</h2><div className="space-y-4"><div><FL>Select Competition</FL><Sel value={cid} onChange={e=>{setCid(e.target.value);setMsg("")}}><option value="">{avail.length===0?"No active competitions for your grade":"— Select —"}</option>{avail.map(c=><option key={c.id} value={c.id}>{c.nameEn}</option>)}</Sel></div>{msg&&<div className="p-3 bg-emerald-500/10 border border-emerald-400/20 text-emerald-200 rounded-xl text-sm leading-6">{msg}</div>}
+              {selComp&&(<div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="text-sm font-black text-[#FDB51F] mb-2">📋 قواعد المسابقة • Competition rules</p>
+                <pre className="whitespace-pre-wrap break-words text-xs leading-6 text-white/60 font-sans" dir="rtl">{selComp.rulesAr||"—"}</pre>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Pill t="gold">⏱ Max 3 minutes</Pill>
+                  <Pill t="blue">📦 Max {MAX_VIDEO_MB} MB</Pill>
+                </div>
+              </div>)}
+              <button disabled={!cid} onClick={()=>{setMsg("");setStep("consent")}} className={cn("w-full rounded-2xl px-5 py-4 text-sm font-black",cid?"bg-[#FDB51F] text-slate-950 hover:bg-[#F7C84A] shadow-lg":"cursor-not-allowed bg-white/10 text-white/30")}>📋 Read Consent & Participate</button></div></>)}
+            {step==="form"&&(<form onSubmit={submit} className="space-y-5"><div className="flex items-center gap-3 mb-2"><button type="button" onClick={()=>setStep("idle")} className="text-white/50 text-xs">← Back</button><p className="text-xs text-emerald-300 font-bold">✅ Consent Accepted</p></div><div><FL>Title</FL><Inp value={title} onChange={e=>setTitle(e.target.value)} placeholder="Work title"/></div><div><FL>📹 Upload Video</FL><label className={cn("flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed p-6 cursor-pointer transition",vidFile?"border-emerald-400/40 bg-emerald-500/5":"border-white/10 bg-white/5 hover:border-white/25")}><input type="file" accept="video/mp4,video/quicktime,video/*" onChange={onVid} className="hidden"/>{vidFile?(<><span className="text-3xl">🎬</span><p className="font-black text-emerald-300">{vidFile.name}</p><video src={vidUrl} controls className="w-full max-h-28 rounded-xl mt-2"/></>):(<><span className="text-3xl">📹</span><p className="text-sm font-black text-white">Click to select</p><p className="text-xs text-white/40">MP4, MOV, AVI • ⏱ Max 3 minutes • 📦 Max 50 MB</p></>)}</label></div>{upl&&<div className="rounded-2xl border border-sky-400/20 bg-sky-500/10 p-5 text-center animate-pulse"><div className="flex items-center justify-center gap-3 text-sky-200"><span className="text-xl">📹</span><span className="text-sm font-black uppercase tracking-widest">Uploading Video...</span></div><p className="text-[10px] text-white/40 mt-1 uppercase font-bold tracking-tighter">Please do not close the browser</p></div>}<button type="submit" disabled={upl} className={cn("w-full rounded-2xl px-5 py-4 text-sm font-black shadow-lg",upl?"cursor-not-allowed bg-white/10 text-white/30":"bg-[#FDB51F] text-slate-950 hover:bg-[#F7C84A]")}>{upl?`${prog}%...`:"🚀 Submit Work"}</button></form>)}
           </div></div>
         )}
-        {sTab==="submissions"&&(<div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">{myWorks.length===0&&<div className="md:col-span-3 rounded-3xl border border-white/10 bg-white/5 p-12 text-center text-white/40">No submissions yet</div>}{myWorks.map(w=>{const ev=evals.find(e=>e.workId===w.id);const co=comps.find(c=>c.id===w.competitionId);return(<article key={w.id} className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden"><SecureVideo path={w.videoUrl} poster={w.thumb} controls className="w-full aspect-video object-cover"/><div className="p-4"><div className="text-[10px] font-black uppercase text-sky-300">{co?.nameEn}</div><h3 className="text-base font-black text-white mt-1">{w.title}</h3><div className="mt-3 flex flex-wrap gap-2">{ev?<Pill t="green">✅ Score: {tot(ev.scores)}/100</Pill>:<Pill t="slate">⏳ Under Review</Pill>}</div></div></article>);})}</div>)}
+        {sTab==="submissions"&&(<div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">{myWorks.length===0&&<div className="md:col-span-3 rounded-3xl border border-white/10 bg-white/5 p-12 text-center text-white/40">No submissions yet</div>}{myWorks.map(w=>{const ev=evals.find(e=>e.workId===w.id);const co=comps.find(c=>c.id===w.competitionId);return(<article key={w.id} className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden"><SecureVideo path={w.videoUrl} poster={w.thumb} controls className="w-full aspect-video object-cover"/><div className="p-4"><div className="text-[10px] font-black uppercase text-sky-300">{co?.nameEn}</div><h3 className="text-base font-black text-white mt-1">{w.title}</h3><div className="mt-3 flex flex-wrap gap-2"><StatusPill w={w}/>{ev?<Pill t="green">✅ Score: {tot(ev.scores)}/100</Pill>:null}</div>{!isApproved(w)&&<p className="mt-2 text-[11px] leading-5 text-white/40" dir="rtl">هذه معاينة خاصة لك فقط. لن يظهر الفيديو للجميع حتى يعتمده أحد المعلمين.</p>}</div></article>);})}</div>)}
         {sTab==="certs"&&(<div className="space-y-6">{myCerts.length===0&&<div className="rounded-3xl border border-white/10 bg-white/5 p-12 text-center"><p className="text-4xl mb-3">📜</p><p className="text-white/40">No certificates yet.</p></div>}{myCerts.map(cert=><article key={cert.id} className="rounded-3xl border border-[#FDB51F]/30 bg-gradient-to-r from-[#FDB51F]/10 to-[#0d1230] p-6 flex items-center gap-5 justify-between flex-wrap"><div className="flex items-center gap-4"><div className="text-4xl">{MEDALS[cert.rank-1]||"🏅"}</div><div><h3 className="text-xl font-black text-white">{cert.compName}</h3><div className="flex gap-2 mt-2"><Pill t="gold">Rank #{cert.rank}</Pill><Pill t="green">Score: {cert.score}/100</Pill><Pill t="blue">{cert.grade}</Pill></div></div></div><button onClick={()=>printCert(cert)} className="bg-[#FDB51F] text-slate-950 px-5 py-3 rounded-2xl font-black">Download PDF</button></article>)}</div>)}
       </main>
     </div>
