@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
 // Uses the browser-safe publishable anon key
-const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || "";
+const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || "https://cpinsianfugimhbgzkkx.supabase.co";
 const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || "sb_publishable_ZvcDP1VymahSV-qIjWBotQ_Qdpmq8fn";
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);

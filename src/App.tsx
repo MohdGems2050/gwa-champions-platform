@@ -141,41 +141,70 @@ function cn(...c:Array<string|false|null|undefined>){return c.filter(Boolean).jo
 function mid(p:string){return `${p}-${Math.random().toString(36).slice(2,8)}`}
 function ld<T>(k:string,f:T):T{try{const v=localStorage.getItem(k);return v?JSON.parse(v):f}catch{return f}}
 function sv(k:string,v:any){
-  localStorage.setItem(k,JSON.stringify(v));
+  try{ localStorage.setItem(k,JSON.stringify(v)); }catch{}
   if(typeof window === 'undefined' || !isSupabaseConfigured) return;
+  const validDate=(d:any)=>{ if(!d) return new Date().toISOString(); const t=Date.parse(d); return isNaN(t)?new Date().toISOString():new Date(t).toISOString(); };
+  const chunk=<T,>(arr:T[],size:number):T[][]=>{const out:T[][]=[];for(let i=0;i<arr.length;i+=size)out.push(arr.slice(i,i+size));return out};
   setTimeout(async ()=>{
     try {
+      /* ── ACCOUNTS: dedupe by id + username so one conflict never breaks the whole sync ── */
       if(k===SK.u && Array.isArray(v) && v.length > 0){
-        const rows = v.map((u:any)=>({
-          id:u.id, full_name:u.fullName, role:u.role, grade:u.grade,
-          section:u.section, teacher_id:u.teacherId||null,
-          username:u.username, password:u.password, active:u.active!==false
-        }));
-        await supabase.from("users_data").upsert(rows,{onConflict:"id"});
+        const byId = new Map<string, any>();
+        v.forEach((u:any)=>{
+          if(!u || !u.id || !u.username) return;
+          byId.set(String(u.id), {
+            id:String(u.id), full_name:u.fullName||u.username, role:u.role||"student",
+            grade:u.grade||"", section:u.section||"", teacher_id:u.teacherId||null,
+            username:String(u.username).trim().toLowerCase(), password:String(u.password ?? ""),
+            active:u.active!==false
+          });
+        });
+        const byName = new Map<string, any>();
+        Array.from(byId.values()).forEach(r=>{ byName.set(r.username, r); });
+        const rows = Array.from(byName.values());
+        for(const batch of chunk(rows, 40)){
+          const {error} = await supabase.from("accounts").upsert(batch,{onConflict:"id"});
+          if(error){
+            console.error("accounts upsert:", error.message);
+            for(const row of batch){
+              const {error:rowErr} = await supabase.from("accounts").upsert(row,{onConflict:"id"});
+              if(rowErr) console.error("account row skipped:", row.username, rowErr.message);
+            }
+          }
+        }
       }
       if(k===SK.w && Array.isArray(v) && v.length > 0){
         const rows = v.map((w:any)=>({
-          id:w.id, competition_id:w.competitionId, student_id:w.studentId,
-          title:w.title, description:w.desc||"", video_url:w.videoUrl, thumb:w.thumb||"", at:w.at
+          id:String(w.id), competition_id:String(w.competitionId||""), student_id:String(w.studentId||""),
+          title:w.title||"Untitled", desc:w.desc||"", video_url:w.videoUrl||"", thumb:w.thumb||"",
+          at: validDate(w.at)
         }));
-        await supabase.from("works").upsert(rows,{onConflict:"id"});
+        const {error} = await supabase.from("works").upsert(rows,{onConflict:"id"});
+        if(error) console.error("works upsert:", error.message);
       }
       if(k===SK.e && Array.isArray(v) && v.length > 0){
         const rows = v.map((e:any)=>({
-          id:e.id, work_id:e.workId, scores:e.scores, approved:e.approved||false, at:e.at
+          id:String(e.id), work_id:String(e.workId||""), scores:e.scores||[], approved:e.approved||false, at: validDate(e.at)
         }));
-        await supabase.from("evaluations").upsert(rows,{onConflict:"id"});
+        let {error} = await supabase.from("evaluations").upsert(rows,{onConflict:"id"});
+        if(error){
+          await new Promise(r=>setTimeout(r,1500));
+          const retry = await supabase.from("evaluations").upsert(rows,{onConflict:"id"});
+          error = retry.error;
+        }
+        if(error) console.error("evaluations upsert:", error.message);
       }
       if(k===SK.cert && Array.isArray(v) && v.length > 0){
         const rows = v.map((c:any)=>({
-          id:c.id, work_id:c.workId, student_id:c.studentId, comp_id:c.compId,
-          comp_name:c.compName, score:c.score, rank:c.rank, grade:c.grade,
-          section:c.section, issued_at:c.issuedAt
+          id:String(c.id), work_id:String(c.workId||""), student_id:String(c.studentId||""), comp_id:String(c.compId||""),
+          comp_name:c.compName||"", score:Number(c.score)||0, rank:Number(c.rank)||0, grade:c.grade||"",
+          section:c.section||"", issued_at:c.issuedAt||""
         }));
-        await supabase.from("certificates").upsert(rows,{onConflict:"id"});
+        const {error} = await supabase.from("certificates").upsert(rows,{onConflict:"id"});
+        if(error) console.error("certificates upsert:", error.message);
       }
     } catch(err){ console.error("Supabase save error:", err); }
-  }, 100);
+  }, 120);
 }
 function tot(s:number[]){return s.reduce((a,b)=>a+b,0)}
 function slug(n:string){return n.trim().toLowerCase().replace(/[^a-z0-9\s]/g,"").replace(/\s+/g,".").replace(/^\.+|\.+$/g,"")}
@@ -477,7 +506,7 @@ export default function App(){
   useEffect(()=>{
     async function loadFromSupabase(){
       try {
-        const {data:dbUsers} = await supabase.from("users_data").select("*");
+        const {data:dbUsers} = await supabase.from("accounts").select("*");
         if(dbUsers && dbUsers.length > 0){
           const mapped = dbUsers.map((u:any)=>({
             id:u.id, fullName:u.full_name, role:u.role, grade:u.grade,
@@ -495,7 +524,7 @@ export default function App(){
         if(dbWorks && dbWorks.length > 0){
           const mapped = dbWorks.map((w:any)=>({
             id:w.id, competitionId:w.competition_id, studentId:w.student_id,
-            title:w.title, desc:w.description||"", videoUrl:w.video_url, thumb:w.thumb||"", at:w.at||new Date().toISOString()
+            title:w.title, desc:w.desc||"", videoUrl:w.video_url, thumb:w.thumb||"", at:w.at||new Date().toISOString()
           }));
           setWorks(prev=>{
             const ids=new Set(mapped.map((w:any)=>w.id));
@@ -973,58 +1002,77 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
 
 function StudentLoginPage({users,onBack,onOk}:{users:User[];onBack:()=>void;onOk:(s:User)=>void}){
   const[u,setU]=useState(""); const[p,setP]=useState(""); const[err,setErr]=useState(""); const[loading,setLoading]=useState(false);
+  const norm=(x:any)=>String(x||"").trim().toLowerCase();
+  const mapRow=(r:any):User=>({
+    id:r.id, fullName:r.full_name||r.username||"Student", role:(r.role||"student") as Role,
+    grade:r.grade||"", section:r.section||"", teacherId:r.teacher_id||undefined,
+    username:r.username, password:String(r.password??""), createdAt:r.created_at||"",
+    active:r.active!==false
+  });
+
+  /** Cloud lookup — the source of truth, so the same login works on every device */
+  async function lookupCloud(username:string){
+    if(!isSupabaseConfigured) return {rows:[] as User[], error:"not-configured"};
+    const {data,error}=await supabase.from("accounts").select("*").ilike("username",username).limit(20);
+    if(error) return {rows:[] as User[], error:error.message};
+    const rows=((data||[]) as any[]).map(mapRow);
+    if(rows.length>0){
+      try{
+        const raw=localStorage.getItem(SK.u);
+        const cached:User[]=raw?JSON.parse(raw):[];
+        const merged=[...rows,...cached.filter(c=>!rows.some(x=>x.id===c.id))];
+        localStorage.setItem(SK.u,JSON.stringify(merged));
+      }catch{}
+    }
+    return {rows, error:""};
+  }
+
   async function sub(e:React.FormEvent){
     e.preventDefault();
     setErr("");
+    const username=u.trim(); const password=p;
+    if(!username||!password){setErr("أدخل اسم المستخدم وكلمة المرور • Enter username and password");return}
     setLoading(true);
-
-    const username=u.trim().toLowerCase();
-    const password=p;
-
     try{
-      // 1) Check the shared cloud database (users_data) — this is where
-      //    all admin-created and synced accounts live.
-      if(isSupabaseConfigured && username && password){
-        const { data: cloudRows, error: cloudError } = await supabase
-          .from("users_data")
-          .select("*")
-          .eq("username", username)
-          .eq("role", "student")
-          .limit(1);
-        if(!cloudError && cloudRows && cloudRows.length > 0){
-          const row:any = cloudRows[0];
-          if(row.active === false){ setErr("Invalid credentials or deactivated account"); setLoading(false); return; }
-          if(row.password !== password){ setErr("Invalid credentials or deactivated account"); setLoading(false); return; }
-          onOk({
-            id: row.id,
-            fullName: row.full_name,
-            role: "student",
-            grade: row.grade || "",
-            section: row.section || "",
-            teacherId: row.teacher_id || undefined,
-            username: row.username,
-            password: row.password,
-            createdAt: row.created_at || new Date().toISOString(),
-            active: true,
-          });
-          return;
+      // 1) Cached/synced list (works offline and on repeat visits)
+      let s=users.find(x=>norm(x.username)===norm(username) && String(x.password)===password && (x.role==="student") && x.active!==false);
+
+      // 2) Direct cloud check (fresh device, or account created on another device)
+      if(!s){
+        const cloud=await lookupCloud(username);
+        if(cloud.error && cloud.error!=="not-configured") console.warn("accounts lookup:", cloud.error);
+        if(cloud.rows.length>0){
+          const samePassword=cloud.rows.find(r=>String(r.password)===password);
+          if(samePassword && samePassword.role==="student" && samePassword.active!==false){
+            s=samePassword;
+          }else if(samePassword){
+            setErr("هذا الحساب ليس حساب طالب • This account is not a student account");
+            setLoading(false);return;
+          }else{
+            setErr("كلمة المرور غير صحيحة • Incorrect password");
+            setLoading(false);return;
+          }
         }
       }
-    }catch(err: any){
-      // Cloud unreachable — continue to the synced local list below.
-      console.warn("Cloud login check failed:", err?.message);
-    }
 
-    // 2) Fallback: synced local copy (identical schema).
-    const s=users.find(x=>x.role==="student"&&x.username.toLowerCase()===username&&x.password===password&&x.active);
-    if(s) onOk(s);
-    else setErr("Invalid credentials or deactivated account");
-    setLoading(false);
+      if(s){
+        try{
+          const raw=localStorage.getItem(SK.u);
+          const cached:User[]=raw?JSON.parse(raw):[];
+          if(!cached.some(c=>c.id===s!.id)) localStorage.setItem(SK.u,JSON.stringify([s,...cached]));
+        }catch{}
+        onOk(s); return;
+      }
+      setErr("اسم المستخدم غير موجود • Username not found — تأكد من الاسم أو اطلبه من المعلم");
+    }catch(e:any){
+      setErr("تعذر تسجيل الدخول • Login error: "+(e?.message||"unknown"));
+    }finally{ setLoading(false); }
   }
+
   return(
     <div className="relative min-h-screen bg-[#0d1230] flex items-center justify-center px-6"><Bg/>
-      <div className="relative w-full max-w-md rounded-[2.4rem] border border-white/10 bg-white/5 p-8 backdrop-blur-xl shadow-2xl"><button onClick={onBack} className="text-white/50 text-sm font-bold mb-6 hover:text-white">← Back</button><div className="flex flex-col items-center mb-8"><Logo/><h2 className="mt-5 text-2xl font-black text-white">Student Login • دخول الطالب</h2></div>
-        <form onSubmit={sub} className="space-y-5"><div><FL>Username • اسم المستخدم</FL><Inp value={u} onChange={e=>setU(e.target.value)} placeholder="mariam.salem"/></div><div><FL>Password • كلمة المرور</FL><Inp type="password" value={p} onChange={e=>setP(e.target.value)}/></div>
+      <div className="relative w-full max-w-md rounded-[2.4rem] border border-white/10 bg-white/5 p-8 backdrop-blur-xl shadow-2xl"><button onClick={onBack} className="text-white/50 text-sm font-bold mb-6 hover:text-white">← Back</button><div className="flex flex-col items-center mb-8"><Logo/><h2 className="mt-5 text-2xl font-black text-white">Student Login • دخول الطالب</h2><p className="text-xs text-white/40 mt-2 text-center">Cloud accounts — same login on every device</p></div>
+        <form onSubmit={sub} className="space-y-5"><div><FL>Username • اسم المستخدم</FL><Inp value={u} onChange={e=>setU(e.target.value)} placeholder="mariam.salem" autoComplete="username"/></div><div><FL>Password • كلمة المرور</FL><Inp type="password" value={p} onChange={e=>setP(e.target.value)} autoComplete="current-password"/></div>
           {err&&<div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200 font-bold">{err}</div>}
           <button type="submit" disabled={loading} className={cn("w-full rounded-2xl px-5 py-4 text-base font-black shadow-lg shadow-[#FDB51F]/20",loading?"bg-white/10 text-white/30 cursor-not-allowed":"bg-[#FDB51F] text-slate-950 hover:bg-[#F7C84A]")}>{loading?"Signing in...":"Login 🎓"}</button></form></div>
     </div>
