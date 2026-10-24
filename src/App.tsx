@@ -511,7 +511,6 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
       </div>
       <div className="p-5 flex-1 flex flex-col">
         {comp&&<div className="text-[10px] font-black uppercase tracking-[0.22em] text-[#1697E8] mb-2">{comp.nameEn}</div>}
-        <div className="mb-2 flex flex-wrap items-center gap-2"><StatusPill w={w}/></div>
         <h3 className="text-lg font-black text-white leading-snug">{w.title}</h3>
         {w.desc&&<p className="mt-2 text-sm text-white/50 leading-relaxed line-clamp-2">{w.desc}</p>}
         <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-3">
