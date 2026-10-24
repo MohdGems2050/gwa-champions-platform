@@ -605,46 +605,121 @@ export default function App(){
 /* ════════════════════════════════════
    1. HOME
    ════════════════════════════════════ */
-function HomePage({onStart,onAdmin,onStudent}:{onStart:()=>void;onAdmin:()=>void;onStudent:()=>void}){return(
+function HomePage({onStart,onAdmin,onStudent}:{onStart:()=>void;onAdmin:()=>void;onStudent:()=>void}){
+  const pillars = [
+    {ar:"اللغة العربية",en:"Arabic Language",icon:"📖",tone:"border-[#1697E8]/30 bg-[#1697E8]/15 text-sky-200"},
+    {ar:"التربية الإسلامية",en:"Islamic Education",icon:"🕌",tone:"border-[#10B09B]/30 bg-[#10B09B]/15 text-teal-200"},
+    {ar:"الدراسات الاجتماعية",en:"Social Studies",icon:"🌍",tone:"border-[#E21455]/30 bg-[#E21455]/15 text-pink-200"},
+  ];
+  const stats = [
+    {num:"✦",en:"Competitions",ar:"المسابقات",c:"text-[#FDB51F]"},
+    {num:"✦",en:"Class Galleries",ar:"لوحات الصفوف",c:"text-sky-300"},
+    {num:"10",en:"Criteria",ar:"معايير التقييم",c:"text-emerald-300"},
+  ];
+  return(
   <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#0b1028,#0f1535,#0d1230)] text-white"><Bg/>
-    <header className="relative z-20 border-b border-white/10 bg-[#0b1028]/80 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-4"><Logo/><div><h1 className="text-base font-black uppercase italic tracking-tight text-white sm:text-lg">GWA Arabic & Islamic Champions</h1><p className="text-xs font-semibold text-[#FDB51F]/80" dir="rtl">أبطال اللغة العربية والتربية الإسلامية والدراسات الاجتماعية</p></div></div>
-        <div className="flex items-center gap-3">
-          <button onClick={onStudent} className="rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-bold text-white backdrop-blur hover:bg-white/10 transition">Student Login • دخول الطالب</button>
-          <button onClick={onAdmin} className="rounded-full bg-[#FDB51F] px-5 py-2.5 text-sm font-black text-slate-950 shadow-lg shadow-[#FDB51F]/20 hover:bg-[#F7C84A] transition">الإدارة • Admin</button>
+
+    {/* ── HEADER ── */}
+    <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0b1028]/85 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <Logo s/>
+          <div className="min-w-0">
+            <h1 className="truncate text-sm font-black uppercase italic tracking-tight text-white sm:text-base lg:text-lg">GWA Arabic &amp; Islamic Champions</h1>
+            <p className="truncate text-[11px] font-semibold text-[#FDB51F]/80 sm:text-xs" dir="rtl">أبطال اللغة العربية والتربية الإسلامية والدراسات الاجتماعية</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button onClick={onStudent} className="flex-1 rounded-full border border-white/15 bg-white/5 px-4 py-2.5 text-xs font-bold text-white backdrop-blur transition hover:bg-white/10 sm:flex-none sm:px-5 sm:text-sm">Student Login • دخول الطالب</button>
+          <button onClick={onAdmin} className="flex-1 rounded-full bg-[#FDB51F] px-4 py-2.5 text-xs font-black text-slate-950 shadow-lg shadow-[#FDB51F]/20 transition hover:bg-[#F7C84A] sm:flex-none sm:px-5 sm:text-sm">الإدارة • Admin</button>
         </div>
       </div>
     </header>
-    <main className="relative z-10 mx-auto max-w-7xl px-6 py-10 lg:py-14">
-      <div className="grid gap-6 lg:grid-cols-2 lg:gap-12 items-center">
-        <div className="flex flex-col justify-center order-2 lg:order-1">
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#FDB51F]/25 bg-[#FDB51F]/10 px-5 py-2 mb-5"><span className="h-2 w-2 rounded-full bg-[#FDB51F] animate-pulse"/><span className="text-xs font-black uppercase tracking-[0.22em] text-[#FFE29A]">GEMS World Academy Dubai</span></div>
-          <h2 className="text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl xl:text-5xl">Celebrating Our Students' <span className="block text-transparent bg-clip-text bg-gradient-to-r from-[#FDB51F] via-[#1697E8] to-[#10B09B]">Outstanding Achievements</span></h2>
-          <p className="mt-4 text-base leading-7 text-white/55 max-w-xl">A world-class bilingual platform showcasing student excellence in Arabic Language, Islamic Education & Social Studies.</p>
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-5 py-4 backdrop-blur-sm" dir="rtl"><p className="text-base font-bold leading-9 text-white/80 text-right">أهلاً بكم في <span className="text-[#FDB51F] font-black">أكاديمية جيمس العالمية</span> — دبي، حيث نحتفل بإنجازات طلابنا الأبطال المتميزين في:</p>
-            <div className="flex flex-wrap gap-2 justify-end mt-3">
-              <span className="rounded-full bg-[#1697E8]/20 border border-[#1697E8]/30 px-3 py-1 text-sm font-bold text-sky-200">📖 اللغة العربية</span>
-              <span className="rounded-full bg-[#10B09B]/20 border border-[#10B09B]/30 px-3 py-1 text-sm font-bold text-teal-200">🕌 التربية الإسلامية</span>
-              <span className="rounded-full bg-[#E21455]/20 border border-[#E21455]/30 px-3 py-1 text-sm font-bold text-pink-200">🌍 الدراسات الاجتماعية</span>
+
+    <main className="relative z-10 mx-auto max-w-7xl px-5 pb-16 pt-8 sm:px-6 lg:pt-12">
+
+      {/* ── HERO BANNER: full, uncropped image + caption underneath ── */}
+      <section aria-label="GWA Champions" className="relative mx-auto max-w-6xl">
+        <div className="pointer-events-none absolute -inset-3 rounded-[2.5rem] bg-gradient-to-br from-[#1697E8]/25 via-[#FDB51F]/12 to-transparent blur-3xl sm:-inset-5" aria-hidden="true"/>
+        <figure className="relative m-0">
+          <div className="overflow-hidden rounded-[1.75rem] border border-[#FDB51F]/25 bg-[#0b1028] shadow-[0_30px_90px_-25px_rgba(22,151,232,0.5)] sm:rounded-[2.25rem]">
+            <img
+              src="/hero-student.png"
+              alt="GWA Arabic and Islamic Champions"
+              className="block h-auto w-full object-contain"
+              loading="eager"
+            />
+          </div>
+          <figcaption className="mt-3 flex flex-col items-center gap-4 rounded-[1.5rem] border border-white/10 bg-white/[0.04] px-5 py-4 text-center backdrop-blur-xl sm:mt-4 sm:flex-row sm:justify-between sm:rounded-[1.75rem] sm:px-7 sm:py-5 sm:text-left">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#FDB51F]/15 text-2xl ring-1 ring-[#FDB51F]/30">🏆</span>
+              <div>
+                <p className="text-base font-black leading-tight tracking-tight text-white sm:text-xl">Arabic &amp; Islamic Champions</p>
+                <p className="mt-0.5 text-sm font-bold text-[#FFE29A]" dir="rtl">أبطال العربية والإسلامية</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white/60">GEMS World Academy Dubai</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold text-white/60" dir="rtl">دبي — الإمارات</span>
+            </div>
+          </figcaption>
+        </figure>
+      </section>
+
+      {/* ── CONTENT ── */}
+      <section className="mt-10 grid items-start gap-8 lg:mt-14 lg:grid-cols-[1.1fr_1fr] lg:gap-12">
+
+        {/* copy */}
+        <div>
+          <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-[#FDB51F]/25 bg-[#FDB51F]/10 px-4 py-1.5 sm:px-5 sm:py-2">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-[#FDB51F]"/>
+            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#FFE29A] sm:text-xs">GEMS World Academy Dubai</span>
+          </div>
+          <h2 className="text-3xl font-black leading-[1.15] tracking-tight text-white sm:text-4xl xl:text-5xl">
+            Celebrating Our Students'
+            <span className="mt-1 block bg-gradient-to-r from-[#FDB51F] via-[#1697E8] to-[#10B09B] bg-clip-text text-transparent">Outstanding Achievements</span>
+          </h2>
+          <p className="mt-4 max-w-xl text-sm leading-7 text-white/55 sm:text-base">A world-class bilingual platform showcasing student excellence in Arabic Language, Islamic Education &amp; Social Studies.</p>
+
+          <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 px-5 py-4 backdrop-blur-sm sm:px-6" dir="rtl">
+            <p className="text-right text-sm font-bold leading-8 text-white/80 sm:text-base">أهلاً بكم في <span className="font-black text-[#FDB51F]">أكاديمية جيمس العالمية</span> — دبي، حيث نحتفل بإنجازات طلابنا الأبطال المتميزين في:</p>
+            <div className="mt-3 flex flex-wrap justify-end gap-2">
+              {pillars.map(p=>(
+                <span key={p.en} title={p.en} className={cn("rounded-full border px-3 py-1.5 text-xs font-bold sm:text-sm",p.tone)}>{p.icon} {p.ar}</span>
+              ))}
             </div>
           </div>
-          <div className="mt-7">
-            <button onClick={onStart} className="group rounded-full p-[2px] bg-gradient-to-r from-[#FDB51F] to-[#E21455] shadow-[0_0_40px_rgba(253,181,31,0.35)] hover:shadow-[0_0_60px_rgba(253,181,31,0.5)] transition-all hover:scale-105">
-              <div className="rounded-full bg-[#0b1028] px-8 py-4 flex items-center gap-3"><span className="text-xl">🚀</span><span className="text-lg font-black text-white">Start Viewing • بدء المشاهدة</span></div>
-            </button>
-          </div>
-          <div className="mt-8 grid grid-cols-3 gap-3">
-            {[{en:"Competitions",num:"✦",ar:"المسابقات",c:"text-[#FDB51F]"},{en:"Class Galleries",num:"✦",ar:"لوحات الصفوف",c:"text-sky-300"},{en:"Criteria",num:"10",ar:"معايير التقييم",c:"text-emerald-300"}].map(s=>(
-              <div key={s.en} className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm text-center"><div className={cn("text-2xl font-black",s.c)}>{s.num}</div><div className="text-[10px] font-bold uppercase tracking-widest text-white/40 mt-1">{s.en}</div><div className="text-xs font-bold text-white/50 mt-1" dir="rtl">{s.ar}</div></div>
+        </div>
+
+        {/* actions + stats */}
+        <div className="flex flex-col gap-6">
+          <button onClick={onStart} className="group w-full rounded-full bg-gradient-to-r from-[#FDB51F] to-[#E21455] p-[2px] shadow-[0_0_40px_rgba(253,181,31,0.3)] transition-all hover:scale-[1.02] hover:shadow-[0_0_60px_rgba(253,181,31,0.45)]">
+            <span className="flex items-center justify-center gap-3 rounded-full bg-[#0b1028] px-6 py-4">
+              <span className="text-xl">🚀</span>
+              <span className="text-base font-black text-white sm:text-lg">Start Viewing • بدء المشاهدة</span>
+            </span>
+          </button>
+
+          <div className="grid grid-cols-3 gap-3">
+            {stats.map(st=>(
+              <div key={st.en} className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center backdrop-blur-sm transition hover:border-white/20 hover:bg-white/[0.07]">
+                <div className={cn("text-2xl font-black",st.c)}>{st.num}</div>
+                <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/40">{st.en}</div>
+                <div className="mt-1 text-xs font-bold text-white/50" dir="rtl">{st.ar}</div>
+              </div>
             ))}
           </div>
+
+          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#1697E8]/15 text-lg ring-1 ring-[#1697E8]/25">🎓</span>
+            <p className="text-xs font-semibold leading-6 text-white/50">Bilingual showcase for students, teachers &amp; families — every video is saved in the cloud and visible on all devices.</p>
+          </div>
         </div>
-        <div className="relative order-1 lg:order-2 flex justify-center"><div className="absolute inset-0 rounded-[3rem] bg-gradient-to-br from-[#1697E8]/20 via-[#FDB51F]/10 to-transparent blur-3xl"/><div className="relative w-full max-w-lg xl:max-w-xl flex flex-col"><div className="overflow-hidden rounded-[2.5rem] rounded-b-none border border-b-0 border-[#FDB51F]/20 shadow-[0_0_80px_rgba(22,151,232,0.2)]"><img src="/hero-student.png" alt="Arabic and Islamic Champions" className="w-full object-cover min-h-[480px] sm:min-h-[520px] lg:min-h-[560px]"/></div><div className="flex items-center justify-center gap-4 rounded-[2.5rem] rounded-t-none border border-t border-white/10 border-t-[#FDB51F]/20 bg-[#0b1028]/85 px-6 py-5 shadow-[0_0_80px_rgba(22,151,232,0.15)] backdrop-blur-xl"><span className="text-4xl drop-shadow-[0_0_12px_rgba(253,181,31,0.45)]">🏆</span><div className="text-center"><p className="text-xl font-black tracking-tight text-[#FDB51F]">Arabic & Islamic Champions</p><p className="mt-1 text-sm font-bold text-white/65" dir="rtl">أبطال العربية والإسلامية</p></div></div></div></div>
-      </div>
+      </section>
     </main>
   </div>
-);}
+  );
+}
 
 /* ════════════════════════════════════
    2. SHOWCASE
