@@ -179,7 +179,7 @@ function sv(k:string,v:any){
           title:w.title||"Untitled", desc:w.desc||"", video_url:w.videoUrl||"", thumb:w.thumb||"",
           at: validDate(w.at)
         }));
-        const {error} = await supabase.from("works").upsert(rows,{onConflict:"id"});
+        const {error} = await supabase.from("works_cloud").upsert(rows,{onConflict:"id"});
         if(error) console.error("works upsert:", error.message);
       }
       if(k===SK.e && Array.isArray(v) && v.length > 0){
@@ -520,7 +520,7 @@ export default function App(){
             return merged;
           });
         }
-        const {data:dbWorks} = await supabase.from("works").select("*").order('at',{ascending:false});
+        const {data:dbWorks} = await supabase.from("works_cloud").select("*").order('at',{ascending:false});
         if(dbWorks && dbWorks.length > 0){
           const mapped = dbWorks.map((w:any)=>({
             id:w.id, competitionId:w.competition_id, studentId:w.student_id,
