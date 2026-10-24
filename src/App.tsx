@@ -978,68 +978,45 @@ function StudentLoginPage({users,onBack,onOk}:{users:User[];onBack:()=>void;onOk
     setErr("");
     setLoading(true);
 
-    const username=u.trim();
+    const username=u.trim().toLowerCase();
     const password=p;
 
     try{
-      // Phase 2A: Try Supabase Auth first using internal email mapping
+      // 1) Check the shared cloud database (users_data) — this is where
+      //    all admin-created and synced accounts live.
       if(isSupabaseConfigured && username && password){
-        const email=`${username}@gwa-champions.ae`;
-        const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
-        
-        if (authError) {
-          setErr(`Supabase Auth Error: ${authError.message}`);
-          setLoading(false);
+        const { data: cloudRows, error: cloudError } = await supabase
+          .from("users_data")
+          .select("*")
+          .eq("username", username)
+          .eq("role", "student")
+          .limit(1);
+        if(!cloudError && cloudRows && cloudRows.length > 0){
+          const row:any = cloudRows[0];
+          if(row.active === false){ setErr("Invalid credentials or deactivated account"); setLoading(false); return; }
+          if(row.password !== password){ setErr("Invalid credentials or deactivated account"); setLoading(false); return; }
+          onOk({
+            id: row.id,
+            fullName: row.full_name,
+            role: "student",
+            grade: row.grade || "",
+            section: row.section || "",
+            teacherId: row.teacher_id || undefined,
+            username: row.username,
+            password: row.password,
+            createdAt: row.created_at || new Date().toISOString(),
+            active: true,
+          });
           return;
-        }
-
-        if(data.user){
-          let s=users.find(x=>x.role==="student"&&x.username===username&&x.active);
-          if(s){ onOk(s); return; }
-          
-          // Query profiles if not found in localStorage
-          const { data: profile, error: profileError } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", data.user.id)
-            .single();
-
-          if (profileError) {
-            setErr(`Profile Query Error: ${profileError.message}`);
-            setLoading(false);
-            return;
-          }
-
-          if(profile && profile.role === "student" && profile.active !== false){
-             const cloudUser: User = {
-               id: profile.id,
-               fullName: profile.full_name,
-               role: "student",
-               grade: profile.grade || "",
-               section: profile.section || "",
-               teacherId: profile.teacher_id || undefined,
-               username: username,
-               password: password, // kept for compatibility with current type, though ignored by Auth
-               createdAt: profile.created_at || new Date().toISOString(),
-               active: profile.active !== false
-             };
-             onOk(cloudUser);
-             return;
-          } else {
-             setErr(`User Role Error: Account found but role is ${profile?.role || 'unknown'} or inactive.`);
-             setLoading(false);
-             return;
-          }
         }
       }
     }catch(err: any){
-      setErr(`Diagnostic Exception: ${err.message}`);
-      setLoading(false);
-      return;
+      // Cloud unreachable — continue to the synced local list below.
+      console.warn("Cloud login check failed:", err?.message);
     }
 
-    // Fallback: preserve existing localStorage behavior unchanged
-    const s=users.find(x=>x.role==="student"&&x.username===username&&x.password===password&&x.active);
+    // 2) Fallback: synced local copy (identical schema).
+    const s=users.find(x=>x.role==="student"&&x.username.toLowerCase()===username&&x.password===password&&x.active);
     if(s) onOk(s);
     else setErr("Invalid credentials or deactivated account");
     setLoading(false);
