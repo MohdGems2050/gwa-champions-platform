@@ -218,7 +218,13 @@ function sv(k:string,v:any){
           approved_at:w.approvedAt?validDate(w.approvedAt):null
         }));
         const {error} = await supabase.from("works_cloud").upsert(rows,{onConflict:"id"});
-        if(error) console.error("works upsert:", error.message);
+        if(error){
+          console.error("works upsert:", error.message);
+          // Older cloud table without the approval columns → still save the submission
+          const legacy = rows.map((r:any)=>{ const {status,approved_by,approved_at,...rest}=r; return rest; });
+          const {error:legacyErr} = await supabase.from("works_cloud").upsert(legacy,{onConflict:"id"});
+          if(legacyErr) console.error("works upsert (legacy):", legacyErr.message);
+        }
       }
       if(k===SK.e && Array.isArray(v) && v.length > 0){
         const rows = v.map((e:any)=>({
