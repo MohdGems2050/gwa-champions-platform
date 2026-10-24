@@ -625,7 +625,7 @@ function HomePage({onStart,onAdmin,onStudent}:{onStart:()=>void;onAdmin:()=>void
         <div className="flex items-center gap-3 sm:gap-4">
           <Logo s/>
           <div className="min-w-0">
-            <h1 className="truncate text-sm font-black uppercase italic tracking-tight text-white sm:text-base lg:text-lg">GWA Arabic &amp; Islamic Champions</h1>
+            <p className="truncate text-sm font-black uppercase italic tracking-tight text-white sm:text-base">GWA Champions</p>
             <p className="truncate text-[11px] font-semibold text-[#FDB51F]/80 sm:text-xs" dir="rtl">أبطال اللغة العربية والتربية الإسلامية والدراسات الاجتماعية</p>
           </div>
         </div>
@@ -638,31 +638,40 @@ function HomePage({onStart,onAdmin,onStudent}:{onStart:()=>void;onAdmin:()=>void
 
     <main className="relative z-10 mx-auto max-w-7xl px-5 pb-16 pt-8 sm:px-6 lg:pt-12">
 
-      {/* ── HERO BANNER: full, uncropped image + caption underneath ── */}
+      {/* ── SCHOOL BRAND: larger logo with the title beneath it ── */}
+      <section aria-label="School brand" className="relative mx-auto mb-8 max-w-4xl sm:mb-10">
+        <div className="pointer-events-none absolute inset-x-0 -top-8 mx-auto h-44 w-2/3 rounded-full bg-[#FDB51F]/15 blur-3xl" aria-hidden="true"/>
+        <div className="relative flex flex-col items-center text-center">
+          <div className="rounded-[1.5rem] border border-white/15 bg-white px-4 py-3 shadow-[0_24px_70px_-24px_rgba(0,0,0,0.85)] ring-1 ring-white/10 sm:rounded-[1.75rem] sm:px-6 sm:py-4">
+            <img
+              src="/gems-logo.png"
+              alt="GEMS World Academy Dubai — أكاديمية جيمس العالمية"
+              className="block h-20 w-auto max-w-[86vw] object-contain sm:h-24 lg:h-28 xl:h-32"
+              loading="eager"
+            />
+          </div>
+          <div className="mt-4 flex flex-col items-center gap-1.5 sm:mt-5">
+            <p className="flex items-center gap-2 text-lg font-black leading-tight tracking-tight text-[#FDB51F] sm:text-2xl lg:text-[1.7rem]">
+              <span aria-hidden="true">🏆</span>
+              Arabic &amp; Islamic Champions
+            </p>
+            <p className="text-base font-bold leading-tight text-white/85 sm:text-lg lg:text-xl" dir="rtl">أبطال العربية والإسلامية</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── HERO PHOTO: full, uncropped, taller banner ── */}
       <section aria-label="GWA Champions" className="relative mx-auto max-w-6xl">
         <div className="pointer-events-none absolute -inset-3 rounded-[2.5rem] bg-gradient-to-br from-[#1697E8]/25 via-[#FDB51F]/12 to-transparent blur-3xl sm:-inset-5" aria-hidden="true"/>
         <figure className="relative m-0">
           <div className="overflow-hidden rounded-[1.75rem] border border-[#FDB51F]/25 bg-[#0b1028] shadow-[0_30px_90px_-25px_rgba(22,151,232,0.5)] sm:rounded-[2.25rem]">
             <img
               src="/hero-student.png"
-              alt="GWA Arabic and Islamic Champions"
+              alt="GWA Arabic and Islamic Champion holding the trophy"
               className="block h-auto w-full object-contain"
               loading="eager"
             />
           </div>
-          <figcaption className="mt-3 flex flex-col items-center gap-4 rounded-[1.5rem] border border-white/10 bg-white/[0.04] px-5 py-4 text-center backdrop-blur-xl sm:mt-4 sm:flex-row sm:justify-between sm:rounded-[1.75rem] sm:px-7 sm:py-5 sm:text-left">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#FDB51F]/15 text-2xl ring-1 ring-[#FDB51F]/30">🏆</span>
-              <div>
-                <p className="text-base font-black leading-tight tracking-tight text-white sm:text-xl">Arabic &amp; Islamic Champions</p>
-                <p className="mt-0.5 text-sm font-bold text-[#FFE29A]" dir="rtl">أبطال العربية والإسلامية</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white/60">GEMS World Academy Dubai</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold text-white/60" dir="rtl">دبي — الإمارات</span>
-            </div>
-          </figcaption>
         </figure>
       </section>
 
