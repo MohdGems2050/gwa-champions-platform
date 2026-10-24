@@ -9,7 +9,7 @@ type Role = "teacher" | "student";
 type View = "home"|"showcase"|"classBoard"|"allWorks"|"winners"|"adminLogin"|"admin"|"teacherLogin"|"teacher"|"studentLogin"|"student";
 type User = { id:string; fullName:string; role:Role; grade:string; section:string; teacherId?:string; username:string; password:string; createdAt:string; active:boolean };
 type Comp = { id:string; nameAr:string; nameEn:string; logoUrl:string; grades:string[]; rulesAr:string; rulesEn:string; closingDate:string; certDate:string; started:boolean; archived:boolean; criteria:string[]; evalCode:string };
-type Work = { id:string; competitionId:string; studentId:string; title:string; desc:string; videoUrl:string; thumb:string; at:string; approved?:boolean; approvedBy?:string };
+type Work = { id:string; competitionId:string; studentId:string; title:string; desc:string; videoUrl:string; thumb:string; at:string };
 type Ev = { id:string; workId:string; scores:number[]; at:string; approved?:boolean };
 type Like = { workId:string; type:"friend"|"parent"|"teacher"; name:string; at:string };
 type Cert = { id:string; workId:string; studentId:string; compId:string; compName:string; score:number; rank:number; grade:string; section:string; issuedAt:string };
@@ -22,27 +22,6 @@ const GRADES = ["KG 1","KG 2","Grade 1","Grade 2","Grade 3","Grade 4","Grade 5",
 const _SECTIONS = ["A","B","C","D","X","Y"];
 const DEFAULT_CRITERIA = ["Creativity • الإبداع","Clarity • الوضوح","Content • المحتوى","Language • اللغة","Confidence • الثقة","Design • التصميم","Compliance • الالتزام","Organization • التنظيم","Technology • التقنية","Final Impact • الإخراج"];
 const MEDALS = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"];
-
-/* ═══════ FIXED COMPETITION RULES (bilingual) ═══════ */
-const RULES_AR = [
-  "قبول الطالب أن يشارك في هذه المسابقة بغرض التواصل المعرفي والأكاديمي ومن أجل تحقيق أهداف تعليمية.",
-  "على الطالب أن يعلم أن مخالفة أي من هذه القواعد سوف يؤدي إلى حذف الفيديو والمشاركة الخاصة به.",
-  "يتم التحقق من الفيديو مبدئياً قبل إظهاره في لوحات المشاركات للجميع.",
-  "بمجرد إغلاق المسابقة سوف يرسل المعلمون شهادات المشاركة والتقدير للجميع.",
-  "لن تظهر إلا قائمة مشاركات الفائزين فقط في صفحة الفائزين.",
-].join("\n");
-
-const RULES_EN = [
-  "The student accepts to participate in this competition for the purpose of academic and knowledge exchange and to achieve educational objectives.",
-  "The student must understand that violating any of these rules will result in the deletion of their video and participation.",
-  "Every video is initially verified before it is displayed on the participation boards to everyone.",
-  "Once the competition is closed, teachers will issue participation and appreciation certificates to all participants.",
-  "Only the winners' list of participations will appear on the Winners page.",
-].map((t,i)=>`${i+1}. ${t}`).join("\n");
-
-function rulesList(raw:string):string[]{
-  return String(raw||"").split("\n").map(l=>l.replace(/^\s*[\u0661-\u0669\d]+\s*[-.)\u06D4]?\s*/,"").trim()).filter(Boolean);
-}
 
 type CompPreset = { nameEn:string; nameAr:string; criteria:string[] };
 const COMP_PRESETS: CompPreset[] = [
@@ -137,11 +116,11 @@ const seedU: User[] = [
 ];
 
 const seedC:Comp[]=[
-  {id:"cq1",nameEn:"Holy Quran Recitation Competition",nameAr:"مسابقة تلاوة القرآن الكريم",logoUrl:"/gems-logo.png",grades:["Grade 4","Grade 5","Grade 6","Grade 7","Grade 8"],rulesAr:RULES_AR,rulesEn:RULES_EN,closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[0].criteria,evalCode:"QURAN1"},
-  {id:"ct1",nameEn:"Arabic Big Talk",nameAr:"مسابقة التحدث بالعربية",logoUrl:"/gems-logo.png",grades:["Grade 4","Grade 5","Grade 6","Grade 7","Grade 8"],rulesAr:RULES_AR,rulesEn:RULES_EN,closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[1].criteria,evalCode:"TALK1"},
-  {id:"cp1",nameEn:"Classical Arabic Poetry Recitation",nameAr:"مسابقة الشعر العربي الأصيل",logoUrl:"/gems-logo.png",grades:["Grade 5","Grade 6","Grade 7","Grade 8","Grade 9"],rulesAr:RULES_AR,rulesEn:RULES_EN,closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[3].criteria,evalCode:"POETRY1"},
-  {id:"cr1",nameEn:"Arabic Loud Reading Competition",nameAr:"مسابقة القراءة الجهرية",logoUrl:"/gems-logo.png",grades:["Grade 3","Grade 4","Grade 5","Grade 6","Grade 7"],rulesAr:RULES_AR,rulesEn:RULES_EN,closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[4].criteria,evalCode:"READ1"},
-  {id:"cu1",nameEn:"UAE: Land of Goodness",nameAr:"مسابقة الاجتماعيات: الإمارات وطن الخير",logoUrl:"/gems-logo.png",grades:["Grade 4","Grade 5","Grade 6","Grade 7","Grade 8"],rulesAr:RULES_AR,rulesEn:RULES_EN,closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[8].criteria,evalCode:"UAE1"},
+  {id:"cq1",nameEn:"Holy Quran Recitation Competition",nameAr:"مسابقة تلاوة القرآن الكريم",logoUrl:"/gems-logo.png",grades:["Grade 4","Grade 5","Grade 6","Grade 7","Grade 8"],rulesAr:"١- يتلو الطالب آيات من القرآن الكريم\n٢- يُقيّم على أساس التجويد والأداء\n٣- مدة الفيديو ٣ دقائق\n٤- الالتزام بأحكام التلاوة",rulesEn:"1- Student recites verses from the Holy Quran\n2- Evaluated on Tajweed and delivery\n3- Video duration: 3 minutes\n4- Adherence to recitation rules",closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[0].criteria,evalCode:"QURAN1"},
+  {id:"ct1",nameEn:"Arabic Big Talk",nameAr:"مسابقة التحدث بالعربية",logoUrl:"/gems-logo.png",grades:["Grade 4","Grade 5","Grade 6","Grade 7","Grade 8"],rulesAr:"١- يتحدث الطالب بالعربية الفصحى لمدة ٢-٣ دقائق\n٢- يُقيّم على الطلاقة والنطق ولغة الجسد\n٣- الموضوع حر\n٤- مفتوحة للطلاب العرب وغير العرب",rulesEn:"1- Student speaks in Arabic for 2-3 minutes\n2- Evaluated on fluency, pronunciation & body language\n3- Free topic choice\n4- Open to Arab and non-Arab students",closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[1].criteria,evalCode:"TALK1"},
+  {id:"cp1",nameEn:"Classical Arabic Poetry Recitation",nameAr:"مسابقة الشعر العربي الأصيل",logoUrl:"/gems-logo.png",grades:["Grade 5","Grade 6","Grade 7","Grade 8","Grade 9"],rulesAr:"١- يُلقي الطالب قصيدة من الشعر العربي الكلاسيكي\n٢- التقييم على الأداء والإيقاع والتعبير\n٣- مدة الإلقاء ٢-٤ دقائق\n٤- يُفضل الحفظ الكامل",rulesEn:"1- Student recites a classical Arabic poem\n2- Evaluated on delivery, rhythm & expression\n3- Duration: 2-4 minutes\n4- Full memorization preferred",closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[3].criteria,evalCode:"POETRY1"},
+  {id:"cr1",nameEn:"Arabic Loud Reading Competition",nameAr:"مسابقة القراءة الجهرية",logoUrl:"/gems-logo.png",grades:["Grade 3","Grade 4","Grade 5","Grade 6","Grade 7"],rulesAr:"١- يقرأ الطالب نصاً عربياً قراءة جهرية واضحة\n٢- التقييم على النطق والطلاقة والفهم\n٣- مدة القراءة ٢-٣ دقائق\n٤- النص يُختار من الأدب العربي",rulesEn:"1- Student reads an Arabic text aloud clearly\n2- Evaluated on pronunciation, fluency & comprehension\n3- Duration: 2-3 minutes\n4- Text selected from Arabic literature",closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[4].criteria,evalCode:"READ1"},
+  {id:"cu1",nameEn:"UAE: Land of Goodness",nameAr:"مسابقة الاجتماعيات: الإمارات وطن الخير",logoUrl:"/gems-logo.png",grades:["Grade 4","Grade 5","Grade 6","Grade 7","Grade 8"],rulesAr:"١- يقدم الطالب مشروعاً عن الإمارات العربية المتحدة\n٢- يمكن أن يكون فيديو أو عرض رقمي\n٣- يركز على التاريخ أو الجغرافيا أو القيم الوطنية\n٤- الأصالة والإبداع أساس التقييم",rulesEn:"1- Student presents a project about the UAE\n2- Can be a video or digital presentation\n3- Focus on history, geography or national values\n4- Originality and creativity are key",closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[8].criteria,evalCode:"UAE1"},
 ];
 
 const seedW:Work[]=[];
@@ -198,14 +177,9 @@ function sv(k:string,v:any){
         const rows = v.map((w:any)=>({
           id:String(w.id), competition_id:String(w.competitionId||""), student_id:String(w.studentId||""),
           title:w.title||"Untitled", desc:w.desc||"", video_url:w.videoUrl||"", thumb:w.thumb||"",
-          at: validDate(w.at), approved:w.approved===true, approved_by:w.approvedBy||""
+          at: validDate(w.at)
         }));
-        let {error} = await supabase.from("works_cloud").upsert(rows,{onConflict:"id"});
-        if(error && /approved/i.test(error.message||"")){
-          const stripped = rows.map((r:any)=>{const {approved,approved_by,...rest}=r;return rest});
-          const retry = await supabase.from("works_cloud").upsert(stripped,{onConflict:"id"});
-          error = retry.error;
-        }
+        const {error} = await supabase.from("works_cloud").upsert(rows,{onConflict:"id"});
         if(error) console.error("works upsert:", error.message);
       }
       if(k===SK.e && Array.isArray(v) && v.length > 0){
@@ -219,28 +193,6 @@ function sv(k:string,v:any){
           error = retry.error;
         }
         if(error) console.error("evaluations upsert:", error.message);
-      }
-      if(k===SK.c && Array.isArray(v)){
-        const rows = v.map((c:any)=>({
-          id:String(c.id), name_en:c.nameEn||"", name_ar:c.nameAr||"", logo_url:c.logoUrl||"",
-          grades:c.grades||[], rules_ar:c.rulesAr||"", rules_en:c.rulesEn||"",
-          closing_date:c.closingDate||"", cert_date:c.certDate||"",
-          started:c.started!==false, archived:c.archived===true,
-          criteria:c.criteria||[], eval_code:c.evalCode||""
-        }));
-        if(rows.length>0){
-          const {error} = await supabase.from("competitions_cloud").upsert(rows,{onConflict:"id"});
-          if(error) console.error("competitions upsert:", error.message);
-        }
-        const {data:cloudComps,error:listErr} = await supabase.from("competitions_cloud").select("id");
-        if(!listErr && Array.isArray(cloudComps)){
-          const keep = new Set(rows.map((r:any)=>r.id));
-          const stale = cloudComps.map((r:any)=>String(r.id)).filter((id:string)=>!keep.has(id));
-          if(stale.length>0){
-            const {error:delErr} = await supabase.from("competitions_cloud").delete().in("id", stale);
-            if(delErr) console.error("competitions delete:", delErr.message);
-          }
-        }
       }
       if(k===SK.cert && Array.isArray(v) && v.length > 0){
         const rows = v.map((c:any)=>({
@@ -413,31 +365,6 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
   const[starCode,setStarCode]=useState("");
   const[starErr,setStarErr]=useState("");
   const[starOk,setStarOk]=useState(false);
-  /* ── TEACHER APPROVAL (one-time publish gate) ── */
-  const isApproved = w.approved===true;
-  const[askApprove,setAskApprove]=useState(false);
-  const[apUser,setApUser]=useState("");
-  const[apPass,setApPass]=useState("");
-  const[apErr,setApErr]=useState("");
-  const[apBusy,setApBusy]=useState(false);
-  async function submitApproval(e:React.FormEvent){
-    e.preventDefault();
-    const u=apUser.trim().toLowerCase();
-    if(!u||!apPass){setApErr("أدخل اسم المستخدم وكلمة المرور • Enter username and password");return}
-    setApBusy(true); setApErr("");
-    try{
-      let teacher=users.find(x=>x.role==="teacher" && String(x.username).toLowerCase()===u && String(x.password)===apPass && x.active!==false);
-      if(!teacher && isSupabaseConfigured){
-        const {data} = await supabase.from("accounts").select("*").ilike("username",u).limit(10);
-        const row=((data||[]) as any[]).find(r=>String(r.password??"")===apPass && r.role==="teacher" && r.active!==false);
-        if(row) teacher={id:row.id,fullName:row.full_name,role:"teacher",grade:row.grade||"",section:row.section||"",username:row.username,password:String(row.password??""),createdAt:"",active:true};
-      }
-      if(!teacher){setApErr("بيانات المعلم غير صحيحة • Invalid teacher credentials");setApBusy(false);return}
-      setWorks(prev=>prev.map(x=>x.id===w.id?{...x,approved:true,approvedBy:teacher!.fullName}:x));
-      setAskApprove(false); setApUser(""); setApPass(""); setApErr("");
-    }catch(err:any){ setApErr("تعذر الاعتماد • "+(err?.message||"error")); }
-    finally{ setApBusy(false); }
-  }
 
   function confirmStar(){
     if(!comp)return;
@@ -449,18 +376,8 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
   return(
     <article className="group rounded-[2rem] border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden flex flex-col hover:-translate-y-0.5 transition-all">
       <div className="relative bg-black">
-        <SecureVideo path={w.videoUrl} poster={w.thumb} controls={isApproved} preload="metadata" className={cn("w-full aspect-video object-cover",!isApproved&&"pointer-events-none")}/>
-        {!isApproved&&(
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-[linear-gradient(160deg,rgba(7,11,28,0.94),rgba(15,21,53,0.96))] px-5 text-center backdrop-blur-md">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl border border-[#FDB51F]/40 bg-[#FDB51F]/15 text-2xl shadow-[0_0_30px_rgba(253,181,31,0.25)]">⏳</div>
-            <p className="text-sm font-black uppercase tracking-[0.14em] text-[#FFE29A]">Waiting Teacher Approval</p>
-            <p className="text-sm font-bold text-white/75" dir="rtl">بانتظار موافقة المعلم قبل العرض للجميع</p>
-            <p className="text-[11px] leading-5 text-white/40">This video is hidden from the showcase until a teacher approves it. Approval is required once only.<br/>لا يظهر الفيديو في لوحات العرض حتى يعتمده أحد المعلمين — الاعتماد لمرة واحدة فقط.</p>
-            <button onClick={()=>{setAskApprove(true);setApErr("")}} className="mt-1 rounded-full bg-[#FDB51F] px-5 py-2.5 text-xs font-black text-slate-950 shadow-lg hover:bg-[#F7C84A]">👩‍🏫 Teacher Approve • اعتماد المعلم</button>
-          </div>
-        )}
-        {(isWinner||starOk)&&<div className="absolute top-2 right-2 z-30 bg-[#FDB51F] text-slate-900 text-xs font-black px-3 py-1 rounded-full shadow-lg">🏆 Winner</div>}
-        {isApproved&&<div className="absolute top-2 left-2 z-30 rounded-full bg-emerald-500/90 px-3 py-1 text-[10px] font-black text-white shadow-lg">✅ Approved{w.approvedBy?` • ${w.approvedBy}`:""}</div>}
+        <SecureVideo path={w.videoUrl} poster={w.thumb} controls preload="metadata" className="w-full aspect-video object-cover"/>
+        {(isWinner||starOk)&&<div className="absolute top-2 right-2 bg-[#FDB51F] text-slate-900 text-xs font-black px-3 py-1 rounded-full shadow-lg">🏆 Winner</div>}
       </div>
       <div className="p-5 flex-1 flex flex-col">
         {comp&&<div className="text-[10px] font-black uppercase tracking-[0.22em] text-[#1697E8] mb-2">{comp.nameEn}</div>}
@@ -551,109 +468,7 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
         </div>
       )}
       {editEval&&<EvalModal workId={w.id} evals={evals} setEvals={setEvals} onClose={()=>setEditEval(false)} teacherName="Evaluator" criteria={critList}/>}
-      {askApprove&&(
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md" onClick={()=>setAskApprove(false)}>
-          <div className="w-full max-w-sm rounded-[2rem] border border-[#FDB51F]/25 bg-[#0f1535] p-6 shadow-2xl" onClick={e=>e.stopPropagation()}>
-            <div className="mb-5 text-center"><div className="mb-2 text-3xl">👩‍🏫</div><h3 className="text-lg font-black text-white">Teacher Approval</h3><p className="mt-1 text-sm text-white/50">اعتماد المعلم لنشر الفيديو — لمرة واحدة</p></div>
-            <form onSubmit={submitApproval} className="space-y-3">
-              <div><FL>Teacher Username • اسم المعلم</FL><Inp value={apUser} onChange={e=>setApUser(e.target.value)} placeholder="heba" autoComplete="off"/></div>
-              <div><FL>Password • كلمة المرور</FL><Inp type="password" value={apPass} onChange={e=>setApPass(e.target.value)} autoComplete="off"/></div>
-              {apErr&&<div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-200">{apErr}</div>}
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={()=>setAskApprove(false)} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-black text-white/70">Cancel</button>
-                <button type="submit" disabled={apBusy} className={cn("flex-1 rounded-2xl py-3 text-sm font-black",apBusy?"bg-white/10 text-white/30":"bg-[#FDB51F] text-slate-950 hover:bg-[#F7C84A]")}>{apBusy?"...":"Approve ✓"}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </article>
-  );
-}
-
-
-/* ── ADMIN-ONLY COMPETITION TOOLS (edit / delete) ── */
-function CompEditModal({comp,onClose,onSave}:{comp:Comp;onClose:()=>void;onSave:(patch:Partial<Comp>)=>void}){
-  const[nEn,setNEn]=useState(comp.nameEn);
-  const[nAr,setNAr]=useState(comp.nameAr);
-  const[cClose,setCClose]=useState(comp.closingDate||"");
-  const[cCert,setCCert]=useState(comp.certDate||"");
-  const[err,setErr]=useState("");
-  const[rAr,setRAr]=useState(comp.rulesAr||RULES_AR);
-  const[rEn,setREn]=useState(comp.rulesEn||RULES_EN);
-  function save(e:React.FormEvent){
-    e.preventDefault();
-    if(!nEn.trim()||!nAr.trim()){setErr("Enter both names • أدخل اسم المسابقة باللغتين");return}
-    if(cClose&&cCert&&cCert<cClose){setErr("Certs date must be after closing date • تاريخ الشهادات يجب أن يكون بعد تاريخ الإغلاق");return}
-    onSave({nameEn:nEn.trim(),nameAr:nAr.trim(),closingDate:cClose,certDate:cCert,rulesAr:rAr.trim(),rulesEn:rEn.trim()});
-    onClose();
-  }
-  return(
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-[2rem] border border-white/10 bg-[#0f1535] p-6 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e=>e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <div><h3 className="text-xl font-black text-white">✏️ Edit Competition</h3><p className="text-sm text-white/40">تعديل المسابقة — Admin only</p></div>
-          <button onClick={onClose} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white hover:bg-white/10">✕</button>
-        </div>
-        <form onSubmit={save} className="space-y-4">
-          <div><FL>Name (English)</FL><Inp value={nEn} onChange={e=>setNEn(e.target.value)}/></div>
-          <div><FL>Name (Arabic) • الاسم بالعربية</FL><Inp value={nAr} onChange={e=>setNAr(e.target.value)} dir="rtl"/></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><FL>Closing Date</FL><Inp type="date" value={cClose} onChange={e=>setCClose(e.target.value)}/></div>
-            <div><FL>Certs Date</FL><Inp type="date" value={cCert} onChange={e=>setCCert(e.target.value)}/></div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-            <div className="mb-3 flex items-center justify-between"><p className="text-sm font-black text-[#FDB51F]">📜 Competition Rules • قواعد المسابقة</p><button type="button" onClick={()=>{setRAr(RULES_AR);setREn(RULES_EN)}} className="text-[11px] font-bold text-sky-300 hover:text-sky-200">Restore default • استعادة النص الثابت</button></div>
-            <div className="space-y-3">
-              <div><FL>Rules (Arabic) — سطر لكل قاعدة</FL><TA rows={6} value={rAr} onChange={e=>setRAr(e.target.value)} dir="rtl"/></div>
-              <div><FL>Rules (English) — one rule per line</FL><TA rows={6} value={rEn} onChange={e=>setREn(e.target.value)} dir="ltr"/></div>
-            </div>
-          </div>
-          {err&&<div className="rounded-xl bg-rose-500/10 border border-rose-400/20 px-4 py-3 text-sm font-bold text-rose-200">{err}</div>}
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3.5 text-sm font-black text-white/70">Cancel</button>
-            <button type="submit" className="flex-[2] rounded-2xl bg-[#FDB51F] py-3.5 text-sm font-black text-slate-950 hover:bg-[#F7C84A]">Save Changes ✓</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function CompDeleteModal({comp,adminPw,onClose,onConfirm}:{comp:Comp;adminPw:string;onClose:()=>void;onConfirm:()=>void}){
-  const[pw,setPw]=useState("");
-  const[err,setErr]=useState("");
-  function confirm(e:React.FormEvent){
-    e.preventDefault();
-    if(pw.trim()!==adminPw){setErr("كلمة مرور الإدارة غير صحيحة • Incorrect admin password");return}
-    onConfirm();
-  }
-  return(
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md" onClick={onClose}>
-      <div className="w-full max-w-md rounded-[2rem] border border-rose-400/25 bg-[#0f1535] p-6 shadow-2xl" onClick={e=>e.stopPropagation()}>
-        <div className="text-center mb-5">
-          <div className="text-4xl mb-3">🗑️</div>
-          <h3 className="text-xl font-black text-white">Delete Competition</h3>
-          <p className="text-sm text-white/50 mt-1">حذف المسابقة نهائياً</p>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-4">
-          <p className="font-black text-white">{comp.nameEn}</p>
-          <p className="text-sm text-[#FDB51F]" dir="rtl">{comp.nameAr}</p>
-        </div>
-        <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 mb-4 text-sm text-rose-200 font-bold leading-6">
-          ⚠️ سيتم حذف المسابقة وكل مشاركاتها وتقييماتها وشهاداتها نهائياً، ولن تُحفظ في الأرشيف.
-          <br/>This permanently removes the competition, its submissions, evaluations and certificates. Nothing is archived.
-        </div>
-        <form onSubmit={confirm} className="space-y-3">
-          <div><FL>Admin Password • كلمة مرور الإدارة</FL><Inp type="password" value={pw} onChange={e=>{setPw(e.target.value);setErr("")}} autoFocus/></div>
-          {err&&<div className="rounded-xl bg-rose-500/15 border border-rose-400/25 px-4 py-3 text-sm font-bold text-rose-100">{err}</div>}
-          <div className="flex gap-3">
-            <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3.5 text-sm font-black text-white/70">Cancel</button>
-            <button type="submit" className="flex-1 rounded-2xl bg-rose-600 py-3.5 text-sm font-black text-white hover:bg-rose-500">Delete Forever 🗑️</button>
-          </div>
-        </form>
-      </div>
-    </div>
   );
 }
 
@@ -709,8 +524,7 @@ export default function App(){
         if(dbWorks && dbWorks.length > 0){
           const mapped = dbWorks.map((w:any)=>({
             id:w.id, competitionId:w.competition_id, studentId:w.student_id,
-            title:w.title, desc:w.desc||"", videoUrl:w.video_url, thumb:w.thumb||"", at:w.at||new Date().toISOString(),
-            approved:w.approved===true, approvedBy:w.approved_by||""
+            title:w.title, desc:w.desc||"", videoUrl:w.video_url, thumb:w.thumb||"", at:w.at||new Date().toISOString()
           }));
           setWorks(prev=>{
             const ids=new Set(mapped.map((w:any)=>w.id));
@@ -718,19 +532,6 @@ export default function App(){
             localStorage.setItem(SK.w,JSON.stringify(merged));
             return merged;
           });
-        }
-        const {data:dbComps} = await supabase.from("competitions_cloud").select("*");
-        if(dbComps && dbComps.length > 0){
-          const mapped = dbComps.map((c:any)=>({
-            id:c.id, nameEn:c.name_en||"Competition", nameAr:c.name_ar||"مسابقة", logoUrl:c.logo_url||"/gems-logo.png",
-            grades:Array.isArray(c.grades)?c.grades:[], rulesAr:c.rules_ar||"", rulesEn:c.rules_en||"",
-            closingDate:c.closing_date||"", certDate:c.cert_date||"",
-            started:c.started!==false, archived:c.archived===true,
-            criteria:Array.isArray(c.criteria)&&c.criteria.length?c.criteria:DEFAULT_CRITERIA,
-            evalCode:c.eval_code||""
-          })) as Comp[];
-          setComps(mapped);
-          try{ localStorage.setItem(SK.c,JSON.stringify(mapped)); }catch{}
         }
         const {data:dbEvals} = await supabase.from("evaluations").select("*");
         if(dbEvals && dbEvals.length > 0){
@@ -789,12 +590,12 @@ export default function App(){
   }
 
   if(view==="home")return<HomePage onStart={()=>setView("showcase")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")}/>;
-  if(view==="showcase")return<ShowcasePage comps={comps} users={users} works={works} evals={evals} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} setCerts={setCerts} setComps={setComps} certs={certs} adminPw={adminPw} onPromote={promoteToCertificate} onBack={()=>setView("home")} onClass={c=>{setSelClass(c);setView("classBoard")}} onParticipate={id=>{setSelCompId(id);setView("studentLogin")}} onWinners={()=>setView("winners")} onAllWorks={()=>setView("allWorks")} />;
+  if(view==="showcase")return<ShowcasePage comps={comps} users={users} works={works} evals={evals} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("home")} onClass={c=>{setSelClass(c);setView("classBoard")}} onParticipate={id=>{setSelCompId(id);setView("studentLogin")}} onWinners={()=>setView("winners")} onAllWorks={()=>setView("allWorks")} />;
   if(view==="allWorks")return<GlobalWorksPage users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/>;
   if(view==="winners")return<WinnersPage comps={comps} works={works} evals={evals} users={users} likes={likes} setLikes={setLikes} certs={certs} onPromote={promoteToCertificate} adminPw={adminPw} onArchive={handleArchive} onBack={()=>setView("showcase")}/>;
   if(view==="classBoard"&&selClass)return<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/>;
   if(view==="adminLogin")return<AdminLoginPage adminPw={adminPw} onBack={()=>setView("home")} onOk={()=>setView("admin")}/>;
-  if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} works={works} setWorks={setWorks} setEvals={setEvals} setCerts={setCerts} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw} onBack={()=>setView("home")} />;
+  if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw} onBack={()=>setView("home")} />;
   if(view==="studentLogin")return<StudentLoginPage users={users} onBack={()=>setView("home")} onOk={s=>{setCurrentStudent(s);setView("student")}}/>;
   if(view==="student"&&currentStudent)return<StudentPage student={currentStudent} comps={comps} works={works} evals={evals} certs={certs} selCompId={selCompId} setWorks={setWorks} onBack={()=>{setCurrentStudent(null);setView("home")}}/>;
   if(view==="student"&&!currentStudent)return<StudentLoginPage users={users} onBack={()=>setView("home")} onOk={s=>{setCurrentStudent(s);setView("student")}}/>;
@@ -839,47 +640,7 @@ function HomePage({onStart,onAdmin,onStudent}:{onStart:()=>void;onAdmin:()=>void
             ))}
           </div>
         </div>
-        <div className="relative order-1 lg:order-2 w-full">
-          <div className="pointer-events-none absolute -inset-6 rounded-[3.5rem] bg-gradient-to-br from-[#1697E8]/25 via-[#FDB51F]/10 to-transparent blur-3xl"/>
-          {/* ── HERO IMAGE (taller, professional 3:4 framing) ── */}
-          <div className="relative overflow-hidden rounded-[2rem] border border-[#FDB51F]/25 shadow-[0_25px_80px_rgba(0,0,0,0.55)] bg-[#0b1028]">
-            <img src="/hero-student.png" alt="GWA Champions" className="block w-full h-[430px] sm:h-[540px] lg:h-[600px] xl:h-[660px] object-cover object-top"/>
-            {/* top-left GEMS brand lockup */}
-            <div className="absolute top-0 inset-x-0 p-4 sm:p-5 bg-gradient-to-b from-[#0b1028]/85 via-[#0b1028]/35 to-transparent flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3 rounded-2xl bg-white/95 px-3 py-2 shadow-xl backdrop-blur">
-                <img src="/gems-logo.png" alt="GEMS World Academy Dubai" className="h-9 sm:h-11 w-auto object-contain"/>
-                <div className="hidden sm:block leading-tight border-l border-slate-300/70 pl-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#1F2E76]">GEMS World Academy</p>
-                  <p className="text-[10px] font-bold text-slate-500">Dubai — دبي</p>
-                </div>
-              </div>
-              <span className="rounded-full bg-[#FDB51F] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-950 shadow-lg">GWA Competitions</span>
-            </div>
-            {/* bottom bilingual champions title */}
-            <div className="absolute bottom-0 inset-x-0 px-5 pb-5 pt-16 bg-gradient-to-t from-[#070b1c] via-[#070b1c]/80 to-transparent">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.32em] text-[#1697E8]">Arabic &amp; Islamic</p>
-                  <h3 className="text-2xl sm:text-3xl font-black leading-tight text-white">CHAMPIONS</h3>
-                </div>
-                <div className="text-right" dir="rtl">
-                  <p className="text-base sm:text-lg font-black leading-tight text-[#FDB51F]">أبطال اللغة العربية</p>
-                  <p className="text-sm sm:text-base font-bold text-white/70">والتربية الإسلامية</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          {/* ── TROPHY + CAPTION BELOW THE IMAGE ── */}
-          <div className="mt-4 rounded-[1.6rem] border border-[#FDB51F]/25 bg-[linear-gradient(120deg,rgba(253,181,31,0.16),rgba(22,151,232,0.10))] px-5 py-4 backdrop-blur-md shadow-lg">
-            <div className="flex items-center gap-4">
-              <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#FDB51F] text-3xl shadow-[0_0_35px_rgba(253,181,31,0.45)]">🏆</span>
-              <div className="flex-1">
-                <p className="text-base font-black leading-tight text-[#FFE29A]">Arabic &amp; Islamic Champions</p>
-                <p className="mt-0.5 text-sm font-bold leading-relaxed text-white/75" dir="rtl">أبطال اللغة العربية والتربية الإسلامية والدراسات الاجتماعية</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <div className="relative order-1 lg:order-2 flex justify-center"><div className="absolute inset-0 rounded-[3rem] bg-gradient-to-br from-[#1697E8]/20 via-[#FDB51F]/10 to-transparent blur-3xl"/><div className="relative rounded-[2.5rem] overflow-hidden border border-[#FDB51F]/20 shadow-[0_0_80px_rgba(22,151,232,0.2)]"><img src="/hero-student.png" alt="" className="w-full max-w-lg xl:max-w-xl object-cover min-h-[380px]"/><div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-[#0b1028]/90 via-[#0b1028]/40 to-transparent p-6 flex items-center gap-3"><span className="text-3xl">🏆</span><div><p className="text-lg font-black text-[#FDB51F]">Arabic & Islamic Champions</p><p className="text-sm text-white/60" dir="rtl">أبطال العربية والإسلامية</p></div></div></div></div>
       </div>
     </main>
   </div>
@@ -888,55 +649,7 @@ function HomePage({onStart,onAdmin,onStudent}:{onStart:()=>void;onAdmin:()=>void
 /* ════════════════════════════════════
    2. SHOWCASE
    ════════════════════════════════════ */
-function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,setCerts,setComps,certs,adminPw,onPromote,onBack,onParticipate,onWinners,onAllWorks}:{comps:Comp[];users:User[];works:Work[];evals:Ev[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;setCerts:React.Dispatch<React.SetStateAction<Cert[]>>;setComps:React.Dispatch<React.SetStateAction<Comp[]>>;certs:Cert[];adminPw:string;onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void;onClass:(c:ClassInfo)=>void;onParticipate:(id:string)=>void;onWinners:()=>void;onAllWorks:()=>void}){
-  /* ── ADMIN MODE (activated only after entering the admin password) ── */
-  const[adminMode,setAdminMode]=useState(false);
-  const[askAdminPw,setAskAdminPw]=useState(false);
-  const[adminPwInput,setAdminPwInput]=useState("");
-  const[adminPwErr,setAdminPwErr]=useState("");
-  const[editComp,setEditComp]=useState<Comp|null>(null);
-  const[delComp,setDelComp]=useState<Comp|null>(null);
-  function unlockAdmin(e:React.FormEvent){
-    e.preventDefault();
-    if(adminPwInput.trim()===adminPw){setAdminMode(true);setAskAdminPw(false);setAdminPwInput("");setAdminPwErr("")}
-    else setAdminPwErr("كلمة المرور غير صحيحة • Incorrect password");
-  }
-  function saveCompEdit(patch:Partial<Comp>){
-    if(!editComp)return;
-    const id=editComp.id;
-    setComps(p=>p.map(c=>c.id===id?{...c,...patch}:c));
-    setSelCompId(cur=>cur);
-  }
-  function deleteCompForever(c:Comp){
-    const removedWorkIds=works.filter(w=>w.competitionId===c.id).map(w=>w.id);
-    setWorks(p=>p.filter(w=>w.competitionId!==c.id));
-    setEvals(p=>p.filter(e=>!removedWorkIds.includes(e.workId)));
-    setCerts(p=>p.filter(x=>x.compId!==c.id));
-    setComps(p=>p.filter(x=>x.id!==c.id));
-    if(selCompId===c.id)setSelCompId(null);
-    setDelComp(null);
-  }
-  const adminModals=(
-    <>
-      {askAdminPw&&!adminMode&&(
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md" onClick={()=>{setAskAdminPw(false);setAdminPwErr("")}}>
-          <div className="w-full max-w-sm rounded-[2rem] border border-white/10 bg-[#0f1535] p-6 shadow-2xl" onClick={e=>e.stopPropagation()}>
-            <div className="text-center mb-5"><div className="text-3xl mb-2">🔐</div><h3 className="text-lg font-black text-white">Admin Access</h3><p className="text-sm text-white/50">دخول الإدارة — للتعديل أو الحذف</p></div>
-            <form onSubmit={unlockAdmin} className="space-y-3">
-              <Inp type="password" value={adminPwInput} onChange={e=>{setAdminPwInput(e.target.value);setAdminPwErr("")}} placeholder="Admin password" autoFocus/>
-              {adminPwErr&&<div className="rounded-xl bg-rose-500/10 border border-rose-400/20 px-4 py-3 text-sm font-bold text-rose-200">{adminPwErr}</div>}
-              <div className="flex gap-3">
-                <button type="button" onClick={()=>{setAskAdminPw(false);setAdminPwErr("")}} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-black text-white/70">Cancel</button>
-                <button type="submit" className="flex-1 rounded-2xl bg-[#FDB51F] py-3 text-sm font-black text-slate-950">Unlock 🔓</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-      {editComp&&<CompEditModal comp={editComp} onClose={()=>setEditComp(null)} onSave={saveCompEdit}/>}
-      {delComp&&<CompDeleteModal comp={delComp} adminPw={adminPw} onClose={()=>setDelComp(null)} onConfirm={()=>deleteCompForever(delComp)}/>}
-    </>
-  );
+function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,certs,onPromote,onBack,onParticipate,onWinners,onAllWorks}:{comps:Comp[];users:User[];works:Work[];evals:Ev[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void;onClass:(c:ClassInfo)=>void;onParticipate:(id:string)=>void;onWinners:()=>void;onAllWorks:()=>void}){
   const evaluatedCount=useMemo(()=>works.filter(w=>evals.some(e=>e.workId===w.id)).length,[works,evals]);
   const active=useMemo(()=>comps.filter(c=>c.started&&!c.archived),[comps]);
   const[selCompId,setSelCompId]=useState<string|null>(null);
@@ -968,7 +681,6 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
         <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4"><Logo s/><div><h2 className="text-lg font-black uppercase italic">Active Competitions</h2><p className="text-sm text-white/40" dir="rtl">المسابقات النشطة</p></div></div>
           <div className="flex gap-3">
-            <button onClick={()=>{setAdminMode(m=>!m);if(!adminMode)setAskAdminPw(true)}} title="Admin only" className={cn("rounded-full border px-4 py-2.5 text-xs font-black",adminMode?"border-emerald-400/40 bg-emerald-500/20 text-emerald-200":"border-white/10 bg-white/5 text-white/70 hover:bg-white/10")}>{adminMode?"✅ Admin mode":"🔒 Admin"}</button>
             <button onClick={onWinners} className="rounded-xl px-5 py-2.5 text-sm font-black bg-gradient-to-r from-[#FDB51F] to-[#E21455] text-white shadow-lg hover:brightness-110">🏅 Winners{evaluatedCount>0?` (${evaluatedCount})`:""}</button>
             <button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">🏠 Home</button>
           </div>
@@ -981,8 +693,7 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
               const compWorksCount=works.filter(w=>w.competitionId===c.id).length;
               const co=getClassColor(c.nameEn);
               return(
-                <div key={c.id} className="relative">
-                <button onClick={()=>{setSelCompId(c.id);setGradeFilter(null)}} className="group w-full text-left rounded-[2rem] border border-white/10 p-6 hover:-translate-y-1 transition-all relative overflow-hidden backdrop-blur-sm" style={{background:`linear-gradient(140deg,${co.bg},rgba(15,23,42,0.7))`}}>
+                <button key={c.id} onClick={()=>{setSelCompId(c.id);setGradeFilter(null)}} className="group text-left rounded-[2rem] border border-white/10 p-6 hover:-translate-y-1 transition-all relative overflow-hidden backdrop-blur-sm" style={{background:`linear-gradient(140deg,${co.bg},rgba(15,23,42,0.7))`}}>
                   <div className="absolute top-0 right-0 w-32 h-32 blur-3xl rounded-full transition group-hover:scale-110" style={{background:co.glow}}/>
                   <div className="relative z-10">
                     <div className="flex items-center gap-4 mb-4">
@@ -1003,13 +714,6 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
                     </div>
                   </div>
                 </button>
-                {adminMode&&(
-                  <div className="absolute top-3 right-3 z-30 flex gap-2" onClick={e=>e.stopPropagation()}>
-                    <button onClick={()=>setEditComp(c)} className="rounded-full bg-sky-500 px-3 py-2 text-[11px] font-black text-white shadow-lg hover:bg-sky-400">✏️ Edit</button>
-                    <button onClick={()=>setDelComp(c)} className="rounded-full bg-rose-600 px-3 py-2 text-[11px] font-black text-white shadow-lg hover:bg-rose-500">🗑 Delete</button>
-                  </div>
-                )}
-                </div>
               );
             })}
             <button onClick={onAllWorks} className="group text-left rounded-[2rem] border border-white/10 bg-[linear-gradient(140deg,rgba(255,255,255,0.1),rgba(255,255,255,0.05))] p-8 hover:-translate-y-1 hover:border-white/30 transition-all relative overflow-hidden backdrop-blur-sm">
@@ -1026,7 +730,6 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
             </button>
           </div>
         </main>
-        {adminModals}
       </div>
     );
   }
@@ -1037,7 +740,6 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
       <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
         <button onClick={()=>{setSelCompId(null);setGradeFilter(null)}} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">← All Competitions</button>
         <div className="flex gap-3">
-          <button onClick={()=>{if(adminMode)setAdminMode(false);else setAskAdminPw(true)}} className={cn("rounded-full border px-4 py-2 text-xs font-black",adminMode?"border-emerald-400/40 bg-emerald-500/20 text-emerald-200":"border-white/10 bg-white/5 text-white/70 hover:bg-white/10")}>{adminMode?"✅ Admin mode":"🔒 Admin"}</button>
           <button onClick={onWinners} className="rounded-xl px-4 py-2 text-sm font-black bg-gradient-to-r from-[#FDB51F] to-[#E21455] text-white shadow-lg hover:brightness-110">🏅 Winners</button>
           <Logo s/>
         </div>
@@ -1072,45 +774,12 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
         </div>
       </section>
 
-      {/* ── COMPETITION RULES (fixed professional bilingual layout) ── */}
-      <section className="relative z-10 mx-auto max-w-7xl px-6 pt-8">
-        <div className="rounded-[2rem] border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[linear-gradient(90deg,rgba(253,181,31,0.12),rgba(22,151,232,0.08))] px-6 py-4">
-            <div className="flex items-center gap-3">
-              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#FDB51F] text-xl text-slate-950 shadow-lg">📜</span>
-              <div><h2 className="text-lg font-black text-white">Competition Rules</h2><p className="text-sm font-bold text-white/50" dir="rtl">قواعد وشروط المشاركة</p></div>
-            </div>
-            <button onClick={()=>{if(adminMode)setEditComp(selComp);else setAskAdminPw(true)}} className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[11px] font-black text-white/70 hover:bg-white/10">{adminMode?"✏️ Edit Rules • تعديل القواعد":"🔒 Admin: Edit Rules • تعديل"}</button>
-          </div>
-          <div className="grid gap-0 md:grid-cols-2">
-            <div className="border-b border-white/10 p-6 md:border-b-0 md:border-l" dir="rtl">
-              <div className="mb-4 flex items-center justify-between"><span className="rounded-full bg-[#10B09B]/20 border border-[#10B09B]/30 px-3 py-1 text-xs font-black text-teal-200">بالعربية</span><span className="text-[10px] font-bold uppercase tracking-widest text-white/30">Arabic</span></div>
-              <ol className="space-y-3">
-                {rulesList(selComp.rulesAr||RULES_AR).map((r,i)=>(
-                  <li key={i} className="flex gap-3 text-[15px] leading-8 text-white/80"><span className="mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/10 text-xs font-black text-[#FFE29A]">{i+1}</span><span>{r}</span></li>
-                ))}
-              </ol>
-            </div>
-            <div className="p-6" dir="ltr">
-              <div className="mb-4 flex items-center justify-between"><span className="rounded-full bg-[#1697E8]/20 border border-[#1697E8]/30 px-3 py-1 text-xs font-black text-sky-200">English</span><span className="text-[10px] font-bold uppercase tracking-widest text-white/30" dir="rtl">الإنجليزية</span></div>
-              <ol className="space-y-3">
-                {rulesList(selComp.rulesEn||RULES_EN).map((r,i)=>(
-                  <li key={i} className="flex gap-3 text-[15px] leading-8 text-white/80"><span className="mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/10 text-xs font-black text-sky-200">{i+1}</span><span>{r}</span></li>
-                ))}
-              </ol>
-            </div>
-          </div>
-          <div className="border-t border-white/10 bg-black/20 px-6 py-3 text-[11px] font-bold leading-6 text-white/40" dir="rtl">مخالفة أي من القواعد تؤدي إلى حذف الفيديو والمشاركة نهائياً • Violating any rule results in permanent deletion of the video and participation.</div>
-        </div>
-      </section>
-
       <main className="max-w-7xl mx-auto px-6 py-10">
         {compWorks.length===0&&<div className="rounded-3xl border border-white/10 bg-white/5 p-16 text-center"><p className="text-xl text-white/40">{gradeFilter?`No works from ${gradeFilter} yet`:"No works submitted yet"}</p></div>}
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
           {compWorks.map(w=><WorkCard key={w.id} w={w} users={users} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={onPromote}/>)}
         </div>
       </main>
-      {adminModals}
     </div>
   );
 }
@@ -1366,7 +1035,7 @@ function StudentLoginPage({users,onBack,onOk}:{users:User[];onBack:()=>void;onOk
     setLoading(true);
     try{
       // 1) Cached/synced list (works offline and on repeat visits)
-      let s=users.find(x=>norm(x.username)===norm(username) && String(x.password)===password && (x.role==="student"||x.role==="teacher") && x.active!==false);
+      let s=users.find(x=>norm(x.username)===norm(username) && String(x.password)===password && (x.role==="student") && x.active!==false);
 
       // 2) Direct cloud check (fresh device, or account created on another device)
       if(!s){
@@ -1374,10 +1043,10 @@ function StudentLoginPage({users,onBack,onOk}:{users:User[];onBack:()=>void;onOk
         if(cloud.error && cloud.error!=="not-configured") console.warn("accounts lookup:", cloud.error);
         if(cloud.rows.length>0){
           const samePassword=cloud.rows.find(r=>String(r.password)===password);
-          if(samePassword && (samePassword.role==="student"||samePassword.role==="teacher") && samePassword.active!==false){
+          if(samePassword && samePassword.role==="student" && samePassword.active!==false){
             s=samePassword;
           }else if(samePassword){
-            setErr("هذا الحساب غير مفعّل • This account is inactive");
+            setErr("هذا الحساب ليس حساب طالب • This account is not a student account");
             setLoading(false);return;
           }else{
             setErr("كلمة المرور غير صحيحة • Incorrect password");
@@ -1402,7 +1071,7 @@ function StudentLoginPage({users,onBack,onOk}:{users:User[];onBack:()=>void;onOk
 
   return(
     <div className="relative min-h-screen bg-[#0d1230] flex items-center justify-center px-6"><Bg/>
-      <div className="relative w-full max-w-md rounded-[2.4rem] border border-white/10 bg-white/5 p-8 backdrop-blur-xl shadow-2xl"><button onClick={onBack} className="text-white/50 text-sm font-bold mb-6 hover:text-white">← Back</button><div className="flex flex-col items-center mb-8"><Logo/><h2 className="mt-5 text-2xl font-black text-white">Student Login • دخول الطالب</h2><p className="text-xs text-white/40 mt-2 text-center">Cloud accounts — same login on every device</p><p className="text-[11px] text-[#FDB51F] mt-2 text-center font-bold">الطلاب والمعلمون يدخلون من هنا • Students &amp; teachers sign in here</p></div>
+      <div className="relative w-full max-w-md rounded-[2.4rem] border border-white/10 bg-white/5 p-8 backdrop-blur-xl shadow-2xl"><button onClick={onBack} className="text-white/50 text-sm font-bold mb-6 hover:text-white">← Back</button><div className="flex flex-col items-center mb-8"><Logo/><h2 className="mt-5 text-2xl font-black text-white">Student Login • دخول الطالب</h2><p className="text-xs text-white/40 mt-2 text-center">Cloud accounts — same login on every device</p></div>
         <form onSubmit={sub} className="space-y-5"><div><FL>Username • اسم المستخدم</FL><Inp value={u} onChange={e=>setU(e.target.value)} placeholder="mariam.salem" autoComplete="username"/></div><div><FL>Password • كلمة المرور</FL><Inp type="password" value={p} onChange={e=>setP(e.target.value)} autoComplete="current-password"/></div>
           {err&&<div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200 font-bold">{err}</div>}
           <button type="submit" disabled={loading} className={cn("w-full rounded-2xl px-5 py-4 text-base font-black shadow-lg shadow-[#FDB51F]/20",loading?"bg-white/10 text-white/30 cursor-not-allowed":"bg-[#FDB51F] text-slate-950 hover:bg-[#F7C84A]")}>{loading?"Signing in...":"Login 🎓"}</button></form></div>
@@ -1413,31 +1082,16 @@ function StudentLoginPage({users,onBack,onOk}:{users:User[];onBack:()=>void;onOk
 /* ════════════════════════════════════
    7. ADMIN PAGE
    ════════════════════════════════════ */
-function AdminPage({users,setUsers,comps,setComps,works,setWorks,setEvals,setCerts,archive,adminPw,setAdminPw,onBack}:{users:User[];setUsers:React.Dispatch<React.SetStateAction<User[]>>;comps:Comp[];setComps:React.Dispatch<React.SetStateAction<Comp[]>>;works:Work[];setWorks:React.Dispatch<React.SetStateAction<Work[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setCerts:React.Dispatch<React.SetStateAction<Cert[]>>;archive:ArchiveEntry[];adminPw:string;setAdminPw:(pw:string)=>void;onBack:()=>void}){
+function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onBack}:{users:User[];setUsers:React.Dispatch<React.SetStateAction<User[]>>;comps:Comp[];setComps:React.Dispatch<React.SetStateAction<Comp[]>>;archive:ArchiveEntry[];adminPw:string;setAdminPw:(pw:string)=>void;onBack:()=>void}){
   const teachers=useMemo(()=>users.filter(u=>u.role==="teacher"),[users]);
   const[tab,setTab]=useState<"users"|"export"|"comps"|"archive">("users");
   const fRef=useRef<HTMLInputElement>(null);
   const[name,setName]=useState(""); const[role,setRole]=useState<Role>("student"); const[grade,setGrade]=useState("Grade 6"); const[sec,setSec]=useState("X"); const[tid,setTid]=useState(""); const[umsg,setUmsg]=useState("");
-  const[nAr,setNAr]=useState(""); const[nEn,setNEn]=useState(""); const[cGrades,setCGrades]=useState<string[]>(["Grade 6"]); const[rAr,setRAr]=useState(RULES_AR); const[rEn,setREn]=useState(RULES_EN); const[cClose,setCClose]=useState("2026-06-01"); const[cCert,setCCert]=useState("2026-06-15"); const[cmsg,setCmsg]=useState(""); const[impMsg,setImpMsg]=useState("");
+  const[nAr,setNAr]=useState(""); const[nEn,setNEn]=useState(""); const[cGrades,setCGrades]=useState<string[]>(["Grade 6"]); const[rAr,setRAr]=useState(""); const[rEn,setREn]=useState(""); const[cClose,setCClose]=useState("2026-06-01"); const[cCert,setCCert]=useState("2026-06-15"); const[cmsg,setCmsg]=useState(""); const[impMsg,setImpMsg]=useState("");
   const[compCriteria,setCompCriteria]=useState<string[]>([...DEFAULT_CRITERIA]);
   const[selPreset,setSelPreset]=useState<string>("");
   const[showPwModal,setShowPwModal]=useState(false);
   const[newPw,setNewPw]=useState("");
-  const[adminEditComp,setAdminEditComp]=useState<Comp|null>(null);
-  const[adminDelComp,setAdminDelComp]=useState<Comp|null>(null);
-  function saveAdminCompEdit(patch:Partial<Comp>){
-    if(!adminEditComp)return;
-    const id=adminEditComp.id;
-    setComps(p=>p.map(c=>c.id===id?{...c,...patch}:c));
-  }
-  function adminDeleteComp(c:Comp){
-    const removedWorkIds=works.filter(w=>w.competitionId===c.id).map(w=>w.id);
-    setWorks(p=>p.filter(w=>w.competitionId!==c.id));
-    setEvals(p=>p.filter(e=>!removedWorkIds.includes(e.workId)));
-    setCerts(p=>p.filter(x=>x.compId!==c.id));
-    setComps(p=>p.filter(x=>x.id!==c.id));
-    setAdminDelComp(null);
-  }
 
   function applyPreset(idx:string){
     setSelPreset(idx);
@@ -1450,7 +1104,7 @@ function AdminPage({users,setUsers,comps,setComps,works,setWorks,setEvals,setCer
     const u=mkUser(name,role,grade,sec,role==="student"?tid:undefined,users);setUsers(p=>[u,...p]);setUmsg(`✅ ${u.username} / ${u.password}`);setName("")}
   function createComp(e:React.FormEvent){e.preventDefault();if(!nAr.trim()||!nEn.trim()){setCmsg("Enter both names");return}
     const code=Math.random().toString(36).slice(2,8).toUpperCase();
-    setComps(p=>[{id:mid("c"),nameAr:nAr,nameEn:nEn,logoUrl:"/gems-logo.png",grades:cGrades,rulesAr:rAr.trim()||RULES_AR,rulesEn:rEn.trim()||RULES_EN,closingDate:cClose,certDate:cCert,started:true,archived:false,criteria:compCriteria,evalCode:code},...p]);setCmsg(`✅ Created • Evaluation Code: ${code}`);setNAr("");setNEn("");setRAr(RULES_AR);setREn(RULES_EN)}
+    setComps(p=>[{id:mid("c"),nameAr:nAr,nameEn:nEn,logoUrl:"/gems-logo.png",grades:cGrades,rulesAr:rAr,rulesEn:rEn,closingDate:cClose,certDate:cCert,started:true,archived:false,criteria:compCriteria,evalCode:code},...p]);setCmsg(`✅ Created • Evaluation Code: ${code}`);setNAr("");setNEn("");setRAr("");setREn("")}
   function findCol(h:string[],p:string[]){for(let i=0;i<h.length;i++){const s=h[i].toLowerCase().replace(/[\s_\-().]+/g,"");for(const x of p)if(s===x||s.includes(x))return i}return -1}
   async function handleExcelUpload(e:React.ChangeEvent<HTMLInputElement>){const file=e.target.files?.[0];if(!file)return;
     try{const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:"array"});const raw=XLSX.utils.sheet_to_json<(string|number)[]>(wb.Sheets[wb.SheetNames[0]],{header:1,defval:""});if(raw.length<2){setImpMsg("⚠️ Empty file");return}
@@ -1565,17 +1219,8 @@ function AdminPage({users,setUsers,comps,setComps,works,setWorks,setEvals,setCer
                 </div>
                 <div className="grid grid-cols-2 gap-3"><div><FL>Arabic Name</FL><Inp value={nAr} onChange={e=>setNAr(e.target.value)} dir="rtl" placeholder="مسابقة..."/></div><div><FL>English Name</FL><Inp value={nEn} onChange={e=>setNEn(e.target.value)} placeholder="Competition..."/></div></div>
                 <div><FL>Grades</FL><div className="flex flex-wrap gap-2">{GRADES.map(g=><button key={g} type="button" onClick={()=>setCGrades(p=>p.includes(g)?p.filter(x=>x!==g):[...p,g])} className={cn("rounded-full px-3 py-1.5 text-xs font-bold border transition",cGrades.includes(g)?"bg-[#FDB51F] text-slate-950 border-[#FDB51F]":"bg-white/5 text-white/50 border-white/10")}>{g}</button>)}</div></div>
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-black text-[#FDB51F]">📜 Competition Rules • قواعد المسابقة</p>
-                    <button type="button" onClick={()=>{setRAr(RULES_AR);setREn(RULES_EN)}} className="text-[11px] font-bold text-sky-300 hover:text-sky-200">Restore default • استعادة النص الثابت</button>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div><FL>Rules (Arabic) — قواعد بالعربية</FL><TA rows={7} value={rAr} onChange={e=>setRAr(e.target.value)} dir="rtl"/></div>
-                    <div><FL>Rules (English) — قواعد بالإنجليزية</FL><TA rows={7} value={rEn} onChange={e=>setREn(e.target.value)} dir="ltr"/></div>
-                  </div>
-                  <p className="mt-2 text-[11px] font-bold text-white/35">سطر واحد لكل قاعدة — يظهر النص في العمود الخاص بكل لغة داخل صفحة المسابقة.</p>
-                </div>
+                <div><FL>Rules (Arabic)</FL><TA rows={3} value={rAr} onChange={e=>setRAr(e.target.value)} dir="rtl"/></div>
+                <div><FL>Rules (English)</FL><TA rows={3} value={rEn} onChange={e=>setREn(e.target.value)}/></div>
                 <div className="grid grid-cols-2 gap-3"><div><FL>Closing Date</FL><Inp type="date" value={cClose} onChange={e=>setCClose(e.target.value)}/></div><div><FL>Certs Date</FL><Inp type="date" value={cCert} onChange={e=>setCCert(e.target.value)}/></div></div>
                 {cmsg&&<div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">{cmsg}</div>}
                 <button type="submit" className="w-full rounded-2xl bg-[#FDB51F] text-slate-950 font-black py-3.5 hover:bg-[#F7C84A] shadow-lg">Save Competition 🏆</button>
@@ -1591,19 +1236,12 @@ function AdminPage({users,setUsers,comps,setComps,works,setWorks,setEvals,setCer
                     <span className="text-xs text-white/40">🔐 Eval Code:</span>
                     <span className="text-sm font-black text-[#FDB51F] tracking-[0.2em]">{c.evalCode||"—"}</span>
                     <button onClick={()=>{const nc=prompt("New evaluation code:",c.evalCode||"");if(nc!==null)setComps(p=>p.map(x=>x.id===c.id?{...x,evalCode:nc.toUpperCase()}:x))}} className="text-xs text-sky-300 hover:text-sky-200 font-bold ml-2">Change</button>
-                    <div className="ml-auto flex gap-2">
-                      <button onClick={()=>setAdminEditComp(c)} className="rounded-full bg-sky-500/20 border border-sky-400/30 px-3 py-1.5 text-[11px] font-black text-sky-200 hover:bg-sky-500/30">✏️ Edit / تعديل</button>
-                      <button onClick={()=>setAdminDelComp(c)} className="rounded-full bg-rose-600/20 border border-rose-400/30 px-3 py-1.5 text-[11px] font-black text-rose-200 hover:bg-rose-600/30">🗑 Delete / حذف</button>
-                    </div>
                   </div>
                 </div>
               ))}</div>
             </div>
           </div>
         )}
-
-        {adminEditComp&&<CompEditModal comp={adminEditComp} onClose={()=>setAdminEditComp(null)} onSave={saveAdminCompEdit}/>}
-        {adminDelComp&&<CompDeleteModal comp={adminDelComp} adminPw={adminPw} onClose={()=>setAdminDelComp(null)} onConfirm={()=>adminDeleteComp(adminDelComp)}/>}
 
         {tab==="archive"&&(
           <div>
@@ -1697,8 +1335,6 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
   // or loosely match "5" vs "Grade 5"
   const avail=useMemo(()=>{
     const active = comps.filter(c=>c.started&&!c.archived);
-    // Teachers signing in through the Student portal may upload to ANY active competition
-    if(student.role==="teacher") return active;
     const hasExact = active.filter(c=>c.grades.includes(student.grade));
     if (hasExact.length > 0) return hasExact;
     
@@ -1739,8 +1375,7 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
         desc: desc.trim(),
         videoUrl,
         thumb: "",
-        at: new Date().toISOString(),
-        approved: false
+        at: new Date().toISOString()
       };
       // Supabase is the source of truth; the legacy endpoint is best-effort only.
       try {
@@ -1753,7 +1388,7 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
 
       setWorks(p => [work, ...p]);
 
-      setMsg("🎉 تم الإرسال! الفيديو بانتظار اعتماد المعلم قبل ظهوره للجميع • Submitted — waiting for teacher approval before it appears in the showcase.");
+      setMsg("🎉 Submitted! Your work will appear on the Champions page.");
       setTitle(""); setDesc(""); setVidFile(null); setVidUrl(""); setStep("idle");
     } catch (err: any) {
       setMsg("❌ Upload Error: " + err.message);
@@ -1812,7 +1447,7 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
       {step==="consent"&&selComp&&<ConsentModal student={student} compAr={selComp.nameAr} compEn={selComp.nameEn} onOk={()=>setStep("form")} onNo={()=>setStep("idle")}/>}
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center"><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#FDB51F]">Student Portal</div>{student.role==="teacher"&&<div className="mt-1 inline-block rounded-full bg-[#FDB51F]/15 border border-[#FDB51F]/30 px-3 py-1 text-[10px] font-black text-[#FFE29A]">👩‍🏫 Teacher demo upload mode</div>}<h1 className="text-xl font-black">{student.fullName}</h1><p className="text-sm text-white/50">{student.grade} • {student.section}</p></div><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">Back</button></header>
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center"><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#FDB51F]">Student Portal</div><h1 className="text-xl font-black">{student.fullName}</h1><p className="text-sm text-white/50">{student.grade} • {student.section}</p></div><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">Back</button></header>
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex flex-wrap gap-2 mb-8 bg-white/5 border border-white/10 rounded-2xl p-1.5">
           <button onClick={()=>setSTab("participate")} className={cn("rounded-xl px-5 py-3 text-sm font-black",sTab==="participate"?"bg-[#FDB51F] text-slate-950":"text-white/50")}>🎓 Participate</button>
