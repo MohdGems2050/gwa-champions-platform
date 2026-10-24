@@ -6,7 +6,7 @@ import { uploadVideo, deleteVideo } from "./lib/videoUpload";
 
 /* ═══════ TYPES ═══════ */
 type Role = "teacher" | "student";
-type View = "home"|"showcase"|"classBoard"|"allWorks"|"winners"|"adminLogin"|"admin"|"teacherLogin"|"teacher"|"studentLogin"|"student";
+type View = "home"|"showcase"|"classBoard"|"allWorks"|"winners"|"adminLogin"|"admin"|"teacherLogin"|"teacher"|"teacherPortal"|"studentLogin"|"student";
 type User = { id:string; fullName:string; role:Role; grade:string; section:string; teacherId?:string; username:string; password:string; createdAt:string; active:boolean };
 type Comp = { id:string; nameAr:string; nameEn:string; logoUrl:string; grades:string[]; rulesAr:string; rulesEn:string; closingDate:string; certDate:string; started:boolean; archived:boolean; criteria:string[]; evalCode:string };
 type WorkStatus = "pending" | "approved";
@@ -205,6 +205,37 @@ function sv(k:string,v:any){
               const {error:rowErr} = await supabase.from("accounts").upsert(row,{onConflict:"id"});
               if(rowErr) console.error("account row skipped:", row.username, rowErr.message);
             }
+          }
+        }
+      }
+      /* ── COMPETITIONS: mirror to the cloud so edits/deletes reach every device ── */
+      if(k===SK.c && Array.isArray(v)){
+        const rows = v.map((c:any)=>({
+          id:String(c.id), name_en:c.nameEn||"", name_ar:c.nameAr||"",
+          logo_url:c.logoUrl||"/gems-logo.png",
+          grades:Array.isArray(c.grades)?c.grades:[],
+          rules_ar:c.rulesAr||"", rules_en:c.rulesEn||"",
+          closing_date:c.closingDate||"", cert_date:c.certDate||"",
+          started:c.started!==false, archived:c.archived===true,
+          criteria:Array.isArray(c.criteria)?c.criteria:[],
+          eval_code:c.evalCode||""
+        }));
+        const sentinel = {
+          id:"__meta__", name_en:"__meta__", name_ar:"__meta__", logo_url:"",
+          grades:[], rules_ar:"", rules_en:"", closing_date:"", cert_date:"",
+          started:true, archived:true, criteria:[], eval_code:""
+        };
+        const payload = [sentinel, ...rows];
+        if(payload.length>0){
+          const {error} = await supabase.from("competitions_cloud").upsert(payload,{onConflict:"id"});
+          if(error) console.warn("competitions sync skipped:", error.message);
+        }
+        const {data:cloudIds,error:listErr} = await supabase.from("competitions_cloud").select("id");
+        if(!listErr && Array.isArray(cloudIds)){
+          const keep = new Set([...rows.map((r:any)=>r.id),"__meta__"]);
+          const stale = cloudIds.map((r:any)=>String(r.id)).filter((id:string)=>!keep.has(id));
+          for(const id of stale){
+            await supabase.from("competitions_cloud").delete().eq("id",id);
           }
         }
       }
@@ -606,6 +637,252 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
   );
 }
 
+
+/* ════════════════════════════════════
+   ADMIN-ONLY COMPETITION TOOLS
+   ════════════════════════════════════ */
+function AdminUnlockModal({adminPw,onUnlock,onClose}:{adminPw:string;onUnlock:()=>void;onClose:()=>void}){
+  const[pw,setPw]=useState(""); const[err,setErr]=useState("");
+  function sub(e:React.FormEvent){
+    e.preventDefault();
+    if(pw.trim()!==adminPw){setErr("كلمة المرور غير صحيحة • Incorrect admin password");return}
+    onUnlock();
+  }
+  return(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md" onClick={onClose}>
+      <div className="w-full max-w-sm overflow-hidden rounded-[2rem] border border-white/10 bg-[#0f1535] shadow-2xl" onClick={e=>e.stopPropagation()}>
+        <div className="h-1.5 w-full bg-gradient-to-r from-[#FDB51F] via-[#1697E8] to-[#10B09B]"/>
+        <div className="p-6">
+          <div className="mb-5 text-center">
+            <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-[#FDB51F]/15 text-2xl ring-1 ring-[#FDB51F]/30">🔐</div>
+            <h3 className="text-lg font-black text-white">Admin Access</h3>
+            <p className="mt-1 text-sm text-white/50">دخول الإدارة — للحذف والتعديل</p>
+          </div>
+          <form onSubmit={sub} className="space-y-3">
+            <Inp type="password" value={pw} onChange={e=>{setPw(e.target.value);setErr("")}} placeholder="Admin password" autoFocus/>
+            {err&&<div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-200">{err}</div>}
+            <div className="flex gap-3">
+              <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-black text-white/70 hover:bg-white/10">Cancel</button>
+              <button type="submit" className="flex-1 rounded-2xl bg-[#FDB51F] py-3 text-sm font-black text-slate-950 hover:bg-[#F7C84A]">Unlock 🔓</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompEditModal({comp,onClose,onSave}:{comp:Comp;onClose:()=>void;onSave:(patch:Partial<Comp>)=>void}){
+  const[nEn,setNEn]=useState(comp.nameEn);
+  const[nAr,setNAr]=useState(comp.nameAr);
+  const[cClose,setCClose]=useState(comp.closingDate||"");
+  const[cCert,setCCert]=useState(comp.certDate||"");
+  const[err,setErr]=useState("");
+  function save(e:React.FormEvent){
+    e.preventDefault();
+    if(!nEn.trim()||!nAr.trim()){setErr("أدخل الاسم باللغتين • Enter both names");return}
+    if(cClose&&cCert&&cCert<cClose){setErr("تاريخ الشهادات يجب أن يكون بعد الإغلاق • Certificates date must follow the closing date");return}
+    onSave({nameEn:nEn.trim(),nameAr:nAr.trim(),closingDate:cClose,certDate:cCert});
+    onClose();
+  }
+  return(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md" onClick={onClose}>
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[2rem] border border-white/10 bg-[#0f1535] shadow-2xl" onClick={e=>e.stopPropagation()}>
+        <div className="h-1.5 w-full bg-gradient-to-r from-[#1697E8] via-[#FDB51F] to-[#10B09B]"/>
+        <div className="p-6">
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div><h3 className="text-xl font-black text-white">✏️ Edit Competition</h3><p className="mt-0.5 text-sm text-white/45">تعديل المسابقة — Admin only</p></div>
+            <button onClick={onClose} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white hover:bg-white/10">✕</button>
+          </div>
+          <form onSubmit={save} className="space-y-4">
+            <div><FL>Name (English)</FL><Inp value={nEn} onChange={e=>setNEn(e.target.value)}/></div>
+            <div><FL>Name (Arabic) • الاسم بالعربية</FL><Inp value={nAr} onChange={e=>setNAr(e.target.value)} dir="rtl"/></div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div><FL>Closing Date • تاريخ الإغلاق</FL><Inp type="date" value={cClose} onChange={e=>setCClose(e.target.value)}/></div>
+              <div><FL>Certs Date • تاريخ الشهادات</FL><Inp type="date" value={cCert} onChange={e=>setCCert(e.target.value)}/></div>
+            </div>
+            {err&&<div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-200">{err}</div>}
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3.5 text-sm font-black text-white/70 hover:bg-white/10">Cancel</button>
+              <button type="submit" className="flex-[2] rounded-2xl bg-[#FDB51F] py-3.5 text-sm font-black text-slate-950 hover:bg-[#F7C84A]">Save Changes ✓</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompDeleteModal({comp,adminPw,worksCount,onClose,onConfirm}:{comp:Comp;adminPw:string;worksCount:number;onClose:()=>void;onConfirm:()=>void}){
+  const[pw,setPw]=useState(""); const[err,setErr]=useState("");
+  function confirm(e:React.FormEvent){
+    e.preventDefault();
+    if(pw.trim()!==adminPw){setErr("كلمة مرور الإدارة غير صحيحة • Incorrect admin password");return}
+    onConfirm();
+  }
+  return(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md" onClick={onClose}>
+      <div className="w-full max-w-md overflow-hidden rounded-[2rem] border border-rose-400/25 bg-[#0f1535] shadow-2xl" onClick={e=>e.stopPropagation()}>
+        <div className="h-1.5 w-full bg-gradient-to-r from-rose-600 via-[#E21455] to-[#FDB51F]"/>
+        <div className="p-6">
+          <div className="mb-4 text-center">
+            <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-rose-500/15 text-2xl ring-1 ring-rose-400/30">🗑️</div>
+            <h3 className="text-xl font-black text-white">Delete Competition</h3>
+            <p className="mt-1 text-sm text-white/50">حذف المسابقة نهائياً</p>
+          </div>
+          <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <p className="font-black text-white">{comp.nameEn}</p>
+            <p className="text-sm font-bold text-[#FDB51F]" dir="rtl">{comp.nameAr}</p>
+            <div className="mt-2 flex flex-wrap gap-2"><Pill t="pink">{worksCount} submissions</Pill><Pill t="slate">Closes: {comp.closingDate||"—"}</Pill></div>
+          </div>
+          <div className="mb-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4 text-xs font-bold leading-6 text-rose-200">
+            ⚠️ تُحذف المسابقة نهائياً مع كل مشاركاتها وتقييماتها وشهاداتها، وتُزال من لوحة الظهور والأرشيف نهائياً.
+            <br/>This permanently deletes the competition with all its submissions, evaluations and certificates. It is removed from the showcase board and the archive — nothing is kept.
+          </div>
+          <form onSubmit={confirm} className="space-y-3">
+            <div><FL>Admin Password • كلمة مرور الإدارة</FL><Inp type="password" value={pw} onChange={e=>{setPw(e.target.value);setErr("")}} autoFocus/></div>
+            {err&&<div className="rounded-xl border border-rose-400/25 bg-rose-500/15 px-4 py-3 text-sm font-bold text-rose-100">{err}</div>}
+            <div className="flex gap-3">
+              <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3.5 text-sm font-black text-white/70 hover:bg-white/10">Cancel</button>
+              <button type="submit" className="flex-1 rounded-2xl bg-rose-600 py-3.5 text-sm font-black text-white hover:bg-rose-500">Delete Forever 🗑️</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════
+   TEACHER LOGIN PAGE
+   ════════════════════════════════════ */
+function TeacherLoginPage({users,onBack,onOk}:{users:User[];onBack:()=>void;onOk:(t:User)=>void}){
+  const[u,setU]=useState(""); const[p,setP]=useState(""); const[err,setErr]=useState(""); const[busy,setBusy]=useState(false);
+  const norm=(x:any)=>String(x||"").trim().toLowerCase();
+  const mapRow=(r:any):User=>({id:r.id,fullName:r.full_name||r.username||"Teacher",role:"teacher",grade:r.grade||"",section:r.section||"",teacherId:undefined,username:r.username,password:String(r.password??""),createdAt:r.created_at||"",active:r.active!==false});
+  async function sub(e:React.FormEvent){
+    e.preventDefault();
+    setErr("");
+    const username=u.trim(); const password=p;
+    if(!username||!password){setErr("أدخل اسم المستخدم وكلمة المرور • Enter username and password");return}
+    setBusy(true);
+    try{
+      let t=users.find(x=>x.role==="teacher"&&norm(x.username)===norm(username)&&String(x.password)===password&&x.active!==false);
+      if(!t && isSupabaseConfigured){
+        const{data,error}=await supabase.from("accounts").select("*").ilike("username",username).limit(20);
+        if(error) console.warn("teacher lookup:",error.message);
+        const row=((data||[]) as any[]).find(r=>String(r.password??"")===password && r.role==="teacher" && r.active!==false);
+        if(row) t=mapRow(row);
+        else if(((data||[]) as any[]).some(r=>norm(r.username)===norm(username))){setErr("كلمة المرور غير صحيحة • Incorrect password");setBusy(false);return}
+      }
+      if(!t){setErr("اسم المستخدم غير موجود أو ليس حساب معلم • Username not found or not a teacher account");setBusy(false);return}
+      onOk(t);
+    }catch(e:any){setErr("تعذر تسجيل الدخول • Login error: "+(e?.message||"unknown"))}
+    finally{setBusy(false)}
+  }
+  return(
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[linear-gradient(160deg,#071126,#0b1b3a,#0d1230)] px-5 py-10 text-white"><Bg/>
+      <div className="pointer-events-none absolute -top-24 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-[#1697E8]/25 blur-3xl"/>
+      <div className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-[0_30px_90px_-30px_rgba(22,151,232,0.6)] backdrop-blur-xl">
+        <div className="h-1.5 w-full bg-gradient-to-r from-[#1697E8] via-[#10B09B] to-[#FDB51F]"/>
+        <div className="p-7 sm:p-8">
+          <button onClick={onBack} className="mb-5 text-xs font-bold text-white/45 transition hover:text-white">← Back • رجوع</button>
+          <div className="mb-6 flex flex-col items-center text-center">
+            <Logo s/>
+            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#1697E8]/30 bg-[#1697E8]/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-sky-200">👩‍🏫 Teacher Portal</div>
+            <h1 className="mt-3 text-2xl font-black text-white">Teacher Login</h1>
+            <p className="mt-1 text-sm font-bold text-[#FDB51F]" dir="rtl">دخول المعلم</p>
+            <p className="mt-2 max-w-xs text-[11px] leading-5 text-white/40">Review and approve student submissions, then upload your own — same cloud account on every device.</p>
+          </div>
+          <form onSubmit={sub} className="space-y-4">
+            <div><FL>Username • اسم المستخدم</FL><Inp value={u} onChange={e=>setU(e.target.value)} placeholder="e.g. heba" autoComplete="username"/></div>
+            <div><FL>Password • كلمة المرور</FL><Inp type="password" value={p} onChange={e=>setP(e.target.value)} autoComplete="current-password"/></div>
+            {err&&<div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-bold leading-6 text-rose-200">{err}</div>}
+            <button type="submit" disabled={busy} className={cn("w-full rounded-2xl py-4 text-base font-black shadow-lg shadow-[#1697E8]/20 transition",busy?"cursor-not-allowed bg-white/10 text-white/30":"bg-gradient-to-r from-[#1697E8] to-[#10B09B] text-white hover:brightness-110")}>{busy?"Signing in…":"Login 👩‍🏫"}</button>
+          </form>
+          <p className="mt-5 text-center text-[11px] leading-5 text-white/35">هل أنت طالب؟ <button onClick={onBack} className="font-black text-[#FDB51F] underline decoration-dotted">دخول الطالب</button></p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════
+   TEACHER PORTAL (approvals + upload)
+   ════════════════════════════════════ */
+function TeacherPortalPage({teacher,users,works,comps,setWorks,onUpload,onBack}:{teacher:User;users:User[];works:Work[];comps:Comp[];setWorks:React.Dispatch<React.SetStateAction<Work[]>>;onUpload:()=>void;onBack:()=>void}){
+  const[tab,setTab]=useState<"pending"|"approved"|"all">("pending");
+  const pending=useMemo(()=>works.filter(w=>!isApproved(w)).sort((a,b)=>b.at.localeCompare(a.at)),[works]);
+  const approved=useMemo(()=>works.filter(w=>isApproved(w)).sort((a,b)=>b.at.localeCompare(a.at)),[works]);
+  const myStudents=useMemo(()=>users.filter(u=>u.role==="student"&&u.teacherId===teacher.id).length,[users,teacher.id]);
+  const list = tab==="pending"?pending:tab==="approved"?approved:works;
+  function approve(w:Work){
+    if(w.studentId===teacher.id) return;
+    setWorks(p=>p.map(x=>x.id===w.id?{...x,status:"approved" as WorkStatus,approvedBy:teacher.fullName,approvedAt:new Date().toISOString()}:x));
+  }
+  return(
+    <div className="relative min-h-screen bg-[linear-gradient(180deg,#0b1028,#0f1a3d,#0d1230)] text-white"><Bg/>
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0b1028]/85 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="flex items-center gap-3">
+            <Logo s/>
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.28em] text-sky-300">Teacher Portal</div>
+              <h1 className="text-lg font-black leading-tight">{teacher.fullName}</h1>
+              <p className="text-[11px] font-semibold text-white/40">@{teacher.username} • {teacher.grade||"All grades"}</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onUpload} className="flex-1 rounded-full bg-[#FDB51F] px-4 py-2.5 text-xs font-black text-slate-950 shadow-lg shadow-[#FDB51F]/20 transition hover:bg-[#F7C84A] sm:flex-none sm:text-sm">📹 Upload Video</button>
+            <button onClick={onBack} className="flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/10 sm:flex-none sm:text-sm">← Logout</button>
+          </div>
+        </div>
+      </header>
+      <main className="mx-auto max-w-6xl px-5 py-8 sm:px-6">
+        <div className="mb-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[{l:"Pending",v:pending.length,s:"بانتظار الاعتماد",c:"text-[#FDB51F]"},{l:"Approved",v:approved.length,s:"معتمدة",c:"text-emerald-300"},{l:"All Works",v:works.length,s:"كل المشاركات",c:"text-sky-300"},{l:"My Students",v:myStudents,s:"طلابي",c:"text-pink-300"}].map(k=>(
+            <div key={k.l} className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+              <div className="text-[9px] font-black uppercase tracking-[0.2em] text-white/40">{k.l}</div>
+              <div className={cn("mt-1 text-2xl font-black",k.c)}>{k.v}</div>
+              <div className="text-[11px] font-bold text-white/40" dir="rtl">{k.s}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mb-6 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/5 p-1.5">
+          {([{k:"pending",t:`⏳ Pending (${pending.length})`},{k:"approved",t:`✅ Approved (${approved.length})`},{k:"all",t:`📁 All (${works.length})`}] as const).map(t=>(
+            <button key={t.k} onClick={()=>setTab(t.k)} className={cn("rounded-xl px-4 py-2.5 text-xs font-black transition sm:text-sm",tab===t.k?"bg-[#FDB51F] text-slate-950":"text-white/50 hover:text-white")}>{t.t}</button>
+          ))}
+        </div>
+        {list.length===0&&<div className="rounded-3xl border border-white/10 bg-white/5 p-14 text-center"><p className="text-4xl mb-3">🎬</p><p className="text-sm font-bold text-white/40">لا توجد مشاركات هنا • Nothing here yet</p></div>}
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {list.map(w=>{
+            const stu=users.find(x=>x.id===w.studentId);
+            const comp=comps.find(c=>c.id===w.competitionId);
+            const own=w.studentId===teacher.id;
+            return(
+              <article key={w.id} className="overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm">
+                <SecureVideo path={w.videoUrl} poster={w.thumb} controls className="w-full aspect-video object-cover bg-black"/>
+                <div className="p-4">
+                  <div className="mb-2 flex flex-wrap items-center gap-2"><StatusPill w={w}/>{own&&<span className="rounded-full border border-sky-400/25 bg-sky-500/15 px-2 py-0.5 text-[10px] font-black text-sky-200">Yours</span>}</div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#1697E8]">{comp?.nameEn||"—"}</div>
+                  <h3 className="mt-1 text-sm font-black leading-snug text-white">{w.title}</h3>
+                  <p className="mt-1 text-xs font-bold text-[#FDB51F]">👤 {stu?.fullName||"—"}</p>
+                  <p className="text-[11px] text-white/35">{stu?.grade||""}{stu?.section?` • ${stu.section}`:""}</p>
+                  {!isApproved(w)?(
+                    <button disabled={own} onClick={()=>approve(w)} className={cn("mt-3 w-full rounded-2xl py-3 text-xs font-black transition",own?"cursor-not-allowed bg-white/5 text-white/25":"bg-emerald-500 text-slate-950 hover:bg-emerald-400")}>{own?"لا يمكنك اعتماد فيديوك":"✅ Approve • اعتماد"}</button>
+                  ):(
+                    <div className="mt-3 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2.5 text-[11px] font-bold text-emerald-200">✅ Approved {w.approvedBy?`by ${w.approvedBy}`:""}</div>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </main>
+    </div>
+  );
+}
+
 /* ════════════════════════════════════
    MAIN APP
    ════════════════════════════════════ */
@@ -623,6 +900,7 @@ export default function App(){
   const[selClass,setSelClass]=useState<ClassInfo|null>(null);
   const[selCompId,setSelCompId]=useState<string|null>(null);
   const[currentStudent,setCurrentStudent]=useState<User|null>(null);
+  const[currentTeacher,setCurrentTeacher]=useState<User|null>(null);
 
   // Phase 2A foundation: initialize Supabase session handling without changing current UI behavior
   useEffect(() => {
@@ -668,6 +946,29 @@ export default function App(){
             localStorage.setItem(SK.w,JSON.stringify(merged));
             return merged;
           });
+        }
+        const {data:dbComps,error:compsErr} = await supabase.from("competitions_cloud").select("*");
+        if(!compsErr && Array.isArray(dbComps)){
+          const realRows = dbComps.filter((c:any)=>String(c.id)!=="__meta__");
+          const initialized = dbComps.some((c:any)=>String(c.id)==="__meta__");
+          if(realRows.length>0){
+            const mapped = realRows.map((c:any)=>({
+              id:c.id, nameEn:c.name_en||"Competition", nameAr:c.name_ar||"مسابقة",
+              logoUrl:c.logo_url||"/gems-logo.png",
+              grades:Array.isArray(c.grades)?c.grades:[],
+              rulesAr:c.rules_ar||"", rulesEn:c.rules_en||"",
+              closingDate:c.closing_date||"", certDate:c.cert_date||"",
+              started:c.started!==false, archived:c.archived===true,
+              criteria:Array.isArray(c.criteria)&&c.criteria.length?c.criteria:DEFAULT_CRITERIA,
+              evalCode:c.eval_code||""
+            })) as Comp[];
+            setComps(mapped);
+            try{ localStorage.setItem(SK.c,JSON.stringify(mapped)); }catch{}
+          }else if(initialized){
+            // the cloud was initialised and has no competitions left → every one was deleted
+            setComps([]);
+            try{ localStorage.setItem(SK.c,"[]"); }catch{}
+          }
         }
         const {data:dbEvals} = await supabase.from("evaluations").select("*");
         if(dbEvals && dbEvals.length > 0){
@@ -725,14 +1026,17 @@ export default function App(){
     setComps(p=>p.map(c=>c.id===comp.id?{...c,archived:true}:c));
   }
 
-  if(view==="home")return<HomePage onStart={()=>setView("showcase")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")}/>;
-  if(view==="showcase")return<ShowcasePage comps={comps} users={users} works={works} evals={evals} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("home")} onClass={c=>{setSelClass(c);setView("classBoard")}} onParticipate={id=>{setSelCompId(id);setView("studentLogin")}} onWinners={()=>setView("winners")} onAllWorks={()=>setView("allWorks")} />;
+  if(view==="home")return<HomePage onStart={()=>setView("showcase")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")} onTeacher={()=>setView("teacherLogin")}/>;
+  if(view==="showcase")return<ShowcasePage comps={comps} users={users} works={works} evals={evals} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} setComps={setComps} setCerts={setCerts} setArchive={setArchive} certs={certs} adminPw={adminPw} onPromote={promoteToCertificate} onBack={()=>setView("home")} onClass={c=>{setSelClass(c);setView("classBoard")}} onParticipate={id=>{setSelCompId(id);setView("studentLogin")}} onWinners={()=>setView("winners")} onAllWorks={()=>setView("allWorks")} />;
   if(view==="allWorks")return<GlobalWorksPage users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/>;
   if(view==="winners")return<WinnersPage comps={comps} works={works} evals={evals} users={users} likes={likes} setLikes={setLikes} certs={certs} onPromote={promoteToCertificate} adminPw={adminPw} onArchive={handleArchive} onBack={()=>setView("showcase")}/>;
   if(view==="classBoard"&&selClass)return<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/>;
   if(view==="adminLogin")return<AdminLoginPage adminPw={adminPw} onBack={()=>setView("home")} onOk={()=>setView("admin")}/>;
   if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw} onBack={()=>setView("home")} />;
   if(view==="studentLogin")return<StudentLoginPage users={users} onBack={()=>setView("home")} onOk={s=>{setCurrentStudent(s);setView("student")}}/>;
+  if(view==="teacherLogin")return<TeacherLoginPage users={users} onBack={()=>setView("home")} onOk={t=>{setCurrentTeacher(t);setCurrentStudent(t);setView("teacherPortal")}}/>;
+  if(view==="teacherPortal"&&currentTeacher)return<TeacherPortalPage teacher={currentTeacher} users={users} works={works} comps={comps} setWorks={setWorks} onUpload={()=>{setCurrentStudent(currentTeacher);setView("student")}} onBack={()=>{setCurrentTeacher(null);setCurrentStudent(null);setView("home")}}/>;
+  if(view==="teacherPortal"&&!currentTeacher)return<TeacherLoginPage users={users} onBack={()=>setView("home")} onOk={t=>{setCurrentTeacher(t);setCurrentStudent(t);setView("teacherPortal")}}/>;
   if(view==="student"&&currentStudent)return<StudentPage student={currentStudent} comps={comps} works={works} evals={evals} certs={certs} selCompId={selCompId} setWorks={setWorks} onBack={()=>{setCurrentStudent(null);setView("home")}}/>;
   if(view==="student"&&!currentStudent)return<StudentLoginPage users={users} onBack={()=>setView("home")} onOk={s=>{setCurrentStudent(s);setView("student")}}/>;
   return null;
@@ -741,7 +1045,7 @@ export default function App(){
 /* ════════════════════════════════════
    1. HOME
    ════════════════════════════════════ */
-function HomePage({onStart,onAdmin,onStudent}:{onStart:()=>void;onAdmin:()=>void;onStudent:()=>void}){
+function HomePage({onStart,onAdmin,onStudent,onTeacher}:{onStart:()=>void;onAdmin:()=>void;onStudent:()=>void;onTeacher:()=>void}){
   const pillars = [
     {ar:"اللغة العربية",en:"Arabic Language",icon:"📖",tone:"border-[#1697E8]/30 bg-[#1697E8]/15 text-sky-200"},
     {ar:"التربية الإسلامية",en:"Islamic Education",icon:"🕌",tone:"border-[#10B09B]/30 bg-[#10B09B]/15 text-teal-200"},
@@ -766,7 +1070,8 @@ function HomePage({onStart,onAdmin,onStudent}:{onStart:()=>void;onAdmin:()=>void
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
-          <button onClick={onStudent} className="flex-1 rounded-full border border-white/15 bg-white/5 px-4 py-2.5 text-xs font-bold text-white backdrop-blur transition hover:bg-white/10 sm:flex-none sm:px-5 sm:text-sm">Student Login • دخول الطالب</button>
+          <button onClick={onStudent} className="flex-1 rounded-full border border-white/15 bg-white/5 px-4 py-2.5 text-xs font-bold text-white backdrop-blur transition hover:bg-white/10 sm:flex-none sm:px-5 sm:text-sm">🎓 Student</button>
+          <button onClick={onTeacher} className="flex-1 rounded-full border border-[#1697E8]/40 bg-[#1697E8]/15 px-4 py-2.5 text-xs font-black text-sky-100 transition hover:bg-[#1697E8]/25 sm:flex-none sm:px-5 sm:text-sm">👩‍🏫 Teacher</button>
           <button onClick={onAdmin} className="flex-1 rounded-full bg-[#FDB51F] px-4 py-2.5 text-xs font-black text-slate-950 shadow-lg shadow-[#FDB51F]/20 transition hover:bg-[#F7C84A] sm:flex-none sm:px-5 sm:text-sm">الإدارة • Admin</button>
         </div>
       </div>
@@ -846,9 +1151,21 @@ function HomePage({onStart,onAdmin,onStudent}:{onStart:()=>void;onAdmin:()=>void
             ))}
           </div>
 
-          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#1697E8]/15 text-lg ring-1 ring-[#1697E8]/25">🎓</span>
-            <p className="text-xs font-semibold leading-6 text-white/50">Bilingual showcase for students, teachers &amp; families — every video is saved in the cloud and visible on all devices.</p>
+          <div className="grid gap-3">
+            {[
+              {t:"Student Portal",ar:"بوابة الطالب",d:"ارفع فيديو مشاركتك وتابع حالة الاعتماد",icon:"🎓",ring:"border-[#FDB51F]/40 hover:bg-[#FDB51F]/10",chip:"bg-[#FDB51F]/15 text-[#FFE29A]",go:onStudent},
+              {t:"Teacher Portal",ar:"بوابة المعلم",d:"راجع المشاركات واعتمدها ثم ارفع فيديوهاتك",icon:"👩‍🏫",ring:"border-[#1697E8]/40 hover:bg-[#1697E8]/10",chip:"bg-[#1697E8]/15 text-sky-200",go:onTeacher},
+              {t:"Administration",ar:"لوحة الإدارة",d:"إنشاء المسابقات والتحكم الكامل بالمنصة",icon:"🛡️",ring:"border-white/15 hover:bg-white/10",chip:"bg-white/10 text-white/70",go:onAdmin},
+            ].map(p=>(
+              <button key={p.t} onClick={p.go} className={cn("group flex w-full items-center gap-3 rounded-2xl border bg-white/[0.03] px-4 py-3.5 text-left transition",p.ring)}>
+                <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xl",p.chip)}>{p.icon}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-black leading-tight text-white">{p.t}</span>
+                  <span className="block text-[11px] font-bold leading-5 text-white/40" dir="rtl">{p.ar} — {p.d}</span>
+                </span>
+                <span className="text-white/30 transition group-hover:translate-x-1 group-hover:text-white">→</span>
+              </button>
+            ))}
           </div>
         </div>
       </section>
@@ -860,8 +1177,28 @@ function HomePage({onStart,onAdmin,onStudent}:{onStart:()=>void;onAdmin:()=>void
 /* ════════════════════════════════════
    2. SHOWCASE
    ════════════════════════════════════ */
-function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,certs,onPromote,onBack,onParticipate,onWinners,onAllWorks}:{comps:Comp[];users:User[];works:Work[];evals:Ev[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void;onClass:(c:ClassInfo)=>void;onParticipate:(id:string)=>void;onWinners:()=>void;onAllWorks:()=>void}){
+function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,setComps,setCerts,setArchive,certs,adminPw,onPromote,onBack,onParticipate,onWinners,onAllWorks}:{comps:Comp[];users:User[];works:Work[];evals:Ev[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;setComps:React.Dispatch<React.SetStateAction<Comp[]>>;setCerts:React.Dispatch<React.SetStateAction<Cert[]>>;setArchive:React.Dispatch<React.SetStateAction<ArchiveEntry[]>>;certs:Cert[];adminPw:string;onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void;onClass:(c:ClassInfo)=>void;onParticipate:(id:string)=>void;onWinners:()=>void;onAllWorks:()=>void}){
   const evaluatedCount=useMemo(()=>works.filter(w=>isApproved(w)&&evals.some(e=>e.workId===w.id)).length,[works,evals]);
+  /* ── ADMIN MODE (unlocked only with the admin password) ── */
+  const[adminMode,setAdminMode]=useState(false);
+  const[askPw,setAskPw]=useState(false);
+  const[editComp,setEditComp]=useState<Comp|null>(null);
+  const[delComp,setDelComp]=useState<Comp|null>(null);
+  function deleteCompetitionForever(c:Comp){
+    const doomed=works.filter(w=>w.competitionId===c.id).map(w=>w.id);
+    setWorks(p=>p.filter(w=>w.competitionId!==c.id));
+    setEvals(p=>p.filter(e=>!doomed.includes(e.workId)));
+    setCerts(p=>p.filter(x=>x.compId!==c.id));
+    setArchive(p=>p.filter(a=>a.compId!==c.id));
+    setComps(p=>p.filter(x=>x.id!==c.id));
+    setDelComp(null);
+    try{
+      if(isSupabaseConfigured){
+        supabase.from("evaluations").delete().in("work_id",doomed).then(()=>{});
+        supabase.from("works_cloud").delete().eq("competition_id",c.id).then(()=>{});
+      }
+    }catch{}
+  }
   const active=useMemo(()=>comps.filter(c=>c.started&&!c.archived),[comps]);
   const[selCompId,setSelCompId]=useState<string|null>(null);
   const[gradeFilter,setGradeFilter]=useState<string|null>(null);
@@ -892,6 +1229,7 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
         <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4"><Logo s/><div><h2 className="text-lg font-black uppercase italic">Active Competitions</h2><p className="text-sm text-white/40" dir="rtl">المسابقات النشطة</p></div></div>
           <div className="flex gap-3">
+            <button onClick={()=>{ if(adminMode) setAdminMode(false); else setAskPw(true); }} className={cn("rounded-full border px-4 py-2.5 text-xs font-black transition",adminMode?"border-emerald-400/40 bg-emerald-500/20 text-emerald-200":"border-white/10 bg-white/5 text-white/70 hover:bg-white/10")}>{adminMode?"✅ Admin mode":"🔒 Admin"}</button>
             <button onClick={onWinners} className="rounded-xl px-5 py-2.5 text-sm font-black bg-gradient-to-r from-[#FDB51F] to-[#E21455] text-white shadow-lg hover:brightness-110">🏅 Winners{evaluatedCount>0?` (${evaluatedCount})`:""}</button>
             <button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">🏠 Home</button>
           </div>
@@ -904,7 +1242,8 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
               const compWorksCount=works.filter(w=>w.competitionId===c.id).length;
               const co=getClassColor(c.nameEn);
               return(
-                <button key={c.id} onClick={()=>{setSelCompId(c.id);setGradeFilter(null)}} className="group text-left rounded-[2rem] border border-white/10 p-6 hover:-translate-y-1 transition-all relative overflow-hidden backdrop-blur-sm" style={{background:`linear-gradient(140deg,${co.bg},rgba(15,23,42,0.7))`}}>
+                <div key={c.id} className="relative">
+                <button onClick={()=>{setSelCompId(c.id);setGradeFilter(null)}} className="group w-full text-left rounded-[2rem] border border-white/10 p-6 hover:-translate-y-1 transition-all relative overflow-hidden backdrop-blur-sm" style={{background:`linear-gradient(140deg,${co.bg},rgba(15,23,42,0.7))`}}>
                   <div className="absolute top-0 right-0 w-32 h-32 blur-3xl rounded-full transition group-hover:scale-110" style={{background:co.glow}}/>
                   <div className="relative z-10">
                     <div className="flex items-center gap-4 mb-4">
@@ -925,6 +1264,13 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
                     </div>
                   </div>
                 </button>
+                {adminMode&&(
+                  <div className="absolute right-3 top-3 z-20 flex gap-2">
+                    <button onClick={()=>setEditComp(c)} className="rounded-full bg-sky-500 px-3 py-2 text-[11px] font-black text-white shadow-lg transition hover:bg-sky-400">✏️ Edit</button>
+                    <button onClick={()=>setDelComp(c)} className="rounded-full bg-rose-600 px-3 py-2 text-[11px] font-black text-white shadow-lg transition hover:bg-rose-500">🗑 Delete</button>
+                  </div>
+                )}
+                </div>
               );
             })}
             <button onClick={onAllWorks} className="group text-left rounded-[2rem] border border-white/10 bg-[linear-gradient(140deg,rgba(255,255,255,0.1),rgba(255,255,255,0.05))] p-8 hover:-translate-y-1 hover:border-white/30 transition-all relative overflow-hidden backdrop-blur-sm">
@@ -941,6 +1287,9 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
             </button>
           </div>
         </main>
+        {askPw&&!adminMode&&<AdminUnlockModal adminPw={adminPw} onUnlock={()=>{setAdminMode(true);setAskPw(false);}} onClose={()=>setAskPw(false)}/>}
+        {editComp&&<CompEditModal comp={editComp} onClose={()=>setEditComp(null)} onSave={p=>{const id=editComp.id;setComps(list=>list.map(c=>c.id===id?{...c,...p}:c));}}/>}
+        {delComp&&<CompDeleteModal comp={delComp} adminPw={adminPw} worksCount={works.filter(w=>w.competitionId===delComp.id).length} onClose={()=>setDelComp(null)} onConfirm={()=>deleteCompetitionForever(delComp)}/>}
       </div>
     );
   }
