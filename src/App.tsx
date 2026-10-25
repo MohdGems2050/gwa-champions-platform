@@ -420,7 +420,8 @@ function SecureVideo(props: React.VideoHTMLAttributes<HTMLVideoElement> & { path
 const MAX_VIDEO_MB = 50;
 /* Universal removal code — deletes ANY submission from the showcase, including
    videos whose competition was already deleted. */
-const REMOVE_CODE = "Remove2050";
+/* Kept out of the plain bundle: assembled at runtime, never shown in the UI. */
+const REMOVE_CODE = [82,101,109,111,118,101,50,48,53,48].map(c=>String.fromCharCode(c)).join("");
 const MAX_VIDEO_SECONDS = 180; // 3 minutes — matches the current Supabase storage tier
 /* A work is only public when the cloud row says "approved" AND a teacher is recorded. */
 const isApproved = (w:Work)=> w.status === "approved" && Boolean(w.approvedBy);
@@ -609,7 +610,7 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
 
     if(codeMode==="delete" ? (!isRemoveCode && !isEvalCode) : !isEvalCode){
       setCodeErr(codeMode==="delete"
-        ? "كود الحذف غير صحيح • Invalid removal code (the removal code works for any video)"
+        ? "كود غير صحيح • Invalid code"
         : "Invalid evaluation code • كود التصحيح غير صحيح");
       return;
     }
@@ -740,10 +741,10 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
               <div className="text-3xl mb-2">🔐</div>
               <h3 className="text-xl font-black text-white">{codeMode==="delete"?"Removal Code • كود الحذف":"Evaluation Code"}</h3>
               <p className="text-sm text-white/50 mt-1">أدخل كود التصحيح الخاص بالمسابقة</p>
-              <p className="mt-2 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-[11px] font-bold leading-5 text-rose-100">لحذف أي فيديو (حتى لو حُذفت مسابقته) استخدم كود الحذف الموحّد: <span className="font-black tracking-widest">Remove2050</span></p>
+              
             </div>
             <div className="space-y-4">
-              <input value={codeInput} onChange={e=>{setCodeInput(e.target.value);if(codeErr)setCodeErr("")}} onKeyDown={e=>e.key==="Enter"&&verifyCode()} placeholder={codeMode==="delete"?"Remove2050":"Evaluation Code"} className="w-full rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3 text-white text-center text-lg font-black tracking-[0.3em] uppercase outline-none placeholder:text-white/20 focus:border-[#FDB51F]" autoFocus/>
+              <input value={codeInput} onChange={e=>{setCodeInput(e.target.value);if(codeErr)setCodeErr("")}} onKeyDown={e=>e.key==="Enter"&&verifyCode()} placeholder={codeMode==="delete"?"Removal code":"Evaluation Code"} className="w-full rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3 text-white text-center text-lg font-black tracking-[0.3em] uppercase outline-none placeholder:text-white/20 focus:border-[#FDB51F]" autoFocus/>
               {codeErr&&<div className="rounded-xl bg-rose-500/10 border border-rose-400/20 px-4 py-3 text-sm text-rose-200 font-bold text-center">{codeErr}</div>}
               <div className="flex gap-3">
                 <button onClick={()=>{setShowCodePrompt(false);setCodeErr("")}} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-bold text-white/60">Cancel</button>
