@@ -1740,21 +1740,133 @@ function WinnersPage({comps,works,evals,users,likes,setLikes,certs,onPromote,adm
    ════════════════════════════════════ */
 function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;onOk:()=>void}){
   const[pw,setPw]=useState(""); const[err,setErr]=useState(""); const[showPw,setShowPw]=useState(false);
+
+  /* ── forgot password flow (hidden by default) ── */
+  const[forgot,setForgot]=useState(false);
+  const[email,setEmail]=useState(""); const[fpErr,setFpErr]=useState(""); const[fpOk,setFpOk]=useState(false);
+  const[attempts,setAttempts]=useState(0); const[revealed,setRevealed]=useState(false); const[busy,setBusy]=useState(false);
+  const MAX_TRIES=5;
+
   function sub(e:React.FormEvent){e.preventDefault(); const t=pw.trim(); if(t===adminPw){setErr("");onOk()}else{setErr("Incorrect password");setPw("")}}
+
+  async function sendRecovery(toEmail:string){
+    const body=[
+      "GWA Champions — Administrator access",
+      "بيانات دخول بوابة الإدارة",
+      "",
+      `Password: ${adminPw}`,
+      `Recovery code: ${ADMIN_RECOVERY_CODE}`,
+      "",
+      "Portal: https://gwa-champions-platform.vercel.app",
+      "بعد الدخول يمكنك تغيير كلمة المرور من تبويب Security.",
+    ].join("\n");
+    try{ await navigator.clipboard.writeText(`Password: ${adminPw}\nRecovery code: ${ADMIN_RECOVERY_CODE}`); }catch{}
+    window.location.href=`mailto:${toEmail}?subject=${encodeURIComponent("GWA Champions — Admin access details")}&body=${encodeURIComponent(body)}`;
+  }
+
+  function submitForgot(e:React.FormEvent){
+    e.preventDefault();
+    if(fpOk) return;
+    const value=email.trim().toLowerCase();
+    if(!value){setFpErr("أدخل البريد الإلكتروني • Enter your email");return}
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)){setFpErr("صيغة البريد الإلكتروني غير صحيحة • Invalid email format");return}
+    setBusy(true);
+    const correct = value === ADMIN_EMAIL.toLowerCase();
+    if(correct){
+      setFpErr(""); setFpOk(true);
+      void sendRecovery(ADMIN_EMAIL);
+      setBusy(false);
+      return;
+    }
+    const used = attempts + 1;
+    setAttempts(used);
+    if(used >= MAX_TRIES){
+      setRevealed(true);
+      setFpErr("تجاوزت عدد المحاولات المسموح • Too many attempts");
+    }else{
+      setFpErr(`البريد الإلكتروني غير مسجّل • Email not registered — المحاولة ${used} من ${MAX_TRIES}`);
+    }
+    setBusy(false);
+  }
+
   return(
-    <div className="relative min-h-screen bg-[#0d1230] flex items-center justify-center px-6"><Bg/>
-      <div className="relative w-full max-w-md rounded-[2.4rem] border border-white/10 bg-white/5 p-8 backdrop-blur-xl shadow-2xl"><button onClick={onBack} className="text-white/50 text-sm font-bold mb-6 hover:text-white">← Back</button><div className="flex flex-col items-center mb-8"><Logo/><h2 className="mt-5 text-2xl font-black text-white">Administration Portal</h2><p className="text-sm text-white/50 mt-1">بوابة الإدارة</p></div>
-        <form onSubmit={sub} className="space-y-5"><div><FL>Admin Password</FL><div className="relative"><Inp type={showPw?"text":"password"} value={pw} onChange={e=>{setPw(e.target.value);if(err)setErr("")}} className="pr-14" autoComplete="off"/><button type="button" onClick={()=>setShowPw(s=>!s)} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 text-xs font-bold">{showPw?"Hide":"Show"}</button></div></div>
-          {err&&<div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-200 text-center">⚠️ {err}</div>}
-          <button type="submit" className="w-full rounded-2xl bg-[#FDB51F] px-5 py-4 text-base font-black text-slate-950 shadow-lg shadow-[#FDB51F]/20 hover:bg-[#F7C84A]">دخول الإدارة • Enter</button></form>
-        <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4 text-center">
-          <p className="text-[11px] font-bold text-white/45">نسيت كلمة المرور؟ ادخل إليها بالرمز من داخل بوابة الإدارة، أو أرسل الرمز إلى بريد الإدارة.</p>
-          <button type="button" onClick={()=>{
-            const body=[`GWA Champions — Admin access details`,`بيانات دخول الإدارة`,``,`Recovery code: ${ADMIN_RECOVERY_CODE}`,``,`Portal: https://gwa-champions-platform.vercel.app/admin`].join("\n");
-            window.location.href=`mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent("GWA Champions — Admin recovery code")}&body=${encodeURIComponent(body)}`;
-          }} className="mt-2 rounded-full border border-[#1697E8]/40 bg-[#1697E8]/15 px-4 py-2 text-[11px] font-black text-sky-100 hover:bg-[#1697E8]/25">📧 إرسال رمز الاستعادة إلى {ADMIN_EMAIL}</button>
-          <p className="mt-2 text-[10px] text-white/25">Recovery code: MohdRoshdi@•••••</p>
-        </div></div>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0d1230] px-6 text-white"><Bg/>
+      <div className="relative w-full max-w-md rounded-[2.4rem] border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-xl">
+        <button onClick={onBack} className="mb-6 text-sm font-bold text-white/50 hover:text-white">← Back</button>
+        <div className="mb-8 flex flex-col items-center"><Logo/><h2 className="mt-5 text-2xl font-black text-white">Administration Portal</h2><p className="mt-1 text-sm text-white/50">بوابة الإدارة</p></div>
+
+        <form onSubmit={sub} className="space-y-5">
+          <div>
+            <FL>Admin Password</FL>
+            <div className="relative">
+              <Inp type={showPw?"text":"password"} value={pw} onChange={e=>{setPw(e.target.value);if(err)setErr("")}} className="pr-14" autoComplete="off"/>
+              <button type="button" onClick={()=>setShowPw(s=>!s)} className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-white/40">{showPw?"Hide":"Show"}</button>
+            </div>
+          </div>
+          {err&&<div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-center text-sm font-bold text-rose-200">⚠️ {err}</div>}
+          <button type="submit" className="w-full rounded-2xl bg-[#FDB51F] px-5 py-4 text-base font-black text-slate-950 shadow-lg shadow-[#FDB51F]/20 hover:bg-[#F7C84A]">دخول الإدارة • Enter</button>
+        </form>
+
+        <div className="mt-4 text-center">
+          <button type="button" onClick={()=>{setForgot(true);setFpErr("");setFpOk(false);setEmail("");}} className="text-[12px] font-bold text-white/40 underline decoration-dotted transition hover:text-[#FFE29A]">Forgot password? • نسيت كلمة المرور</button>
+        </div>
+      </div>
+
+      {forgot&&(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md" onClick={()=>setForgot(false)}>
+          <div className="w-full max-w-md overflow-hidden rounded-[2rem] border border-white/10 bg-[#0f1535] shadow-2xl" onClick={e=>e.stopPropagation()}>
+            <div className="h-1.5 w-full bg-gradient-to-r from-[#1697E8] via-[#FDB51F] to-[#10B09B]"/>
+            <div className="p-6">
+              <div className="mb-5 text-center">
+                <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-[#1697E8]/15 text-2xl ring-1 ring-[#1697E8]/25">🔑</div>
+                <h3 className="text-lg font-black text-white">Forgot Password</h3>
+                <p className="mt-1 text-sm text-white/50">استعادة كلمة مرور الإدارة</p>
+              </div>
+
+              {!fpOk ? (
+                <form onSubmit={submitForgot} className="space-y-3">
+                  <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-bold leading-6 text-white/55">
+                    أدخل <span className="text-white">البريد الإلكتروني المسجّل للإدارة</span> وسنرسل إليك كلمة المرور ورمز الاستعادة.
+                    <br/>Enter the registered admin email and we will send the credentials to it.
+                  </p>
+                  <div><FL>Registered email • البريد المسجّل</FL><Inp type="email" value={email} onChange={e=>{setEmail(e.target.value);setFpErr("")}} placeholder="name@gemsedu.com" autoFocus autoComplete="off"/></div>
+
+                  {fpErr&&<div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-bold leading-6 text-rose-200">{fpErr}</div>}
+
+                  {revealed&&(
+                    <div className="rounded-xl border border-[#FDB51F]/30 bg-[#FDB51F]/10 px-4 py-3 text-sm font-bold leading-7 text-[#FFE29A]">
+                      ✅ البريد الصحيح هو:<br/><span dir="ltr" className="font-black tracking-wide text-white">{ADMIN_EMAIL}</span>
+                      <button type="button" onClick={()=>{setEmail(ADMIN_EMAIL);setFpErr("");}} className="mt-2 block w-full rounded-xl bg-[#FDB51F] py-2.5 text-xs font-black text-slate-950 hover:bg-[#F7C84A]">استخدام هذا البريد وإرسال البيانات</button>
+                    </div>
+                  )}
+
+                  {!revealed&&attempts>0&&(
+                    <p className="text-center text-[11px] font-bold text-white/35">المحاولات المتبقية: {MAX_TRIES-attempts}</p>
+                  )}
+
+                  <div className="flex gap-3 pt-1">
+                    <button type="button" onClick={()=>setForgot(false)} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-black text-white/70 hover:bg-white/10">Cancel</button>
+                    <button type="submit" disabled={busy} className={cn("flex-[1.4] rounded-2xl py-3 text-sm font-black transition",busy?"cursor-not-allowed bg-white/10 text-white/30":"bg-[#1697E8] text-white hover:bg-sky-400")}>{busy?"Sending…":"Send details 📧"}</button>
+                  </div>
+                </form>
+              ) : (
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-4 text-center">
+                    <p className="text-2xl">📬</p>
+                    <p className="mt-2 text-sm font-black text-emerald-200">تم تجهيز بيانات الدخول</p>
+                    <p className="mt-1 text-[12px] leading-6 text-emerald-100/80">سيتم إرسال كلمة المرور ورمز الاستعادة إلى:<br/><span dir="ltr" className="font-black text-white">{ADMIN_EMAIL}</span></p>
+                  </div>
+                  <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[11px] font-bold leading-6 text-white/45">
+                    إن لم يُفتح برنامج البريد تلقائياً، استخدم الزر أدناه. كما نُسخت البيانات إلى الحافظة.
+                  </p>
+                  <button type="button" onClick={()=>void sendRecovery(ADMIN_EMAIL)} className="w-full rounded-2xl bg-[#1697E8] py-3.5 text-sm font-black text-white hover:bg-sky-400">📧 إعادة إرسال البيانات</button>
+                  <button type="button" onClick={()=>{setForgot(false);setFpOk(false);}} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-black text-white/70 hover:bg-white/10">إغلاق • Close</button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
