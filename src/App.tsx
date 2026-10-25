@@ -812,24 +812,60 @@ function TeacherLoginPage({users,onBack,onOk}:{users:User[];onBack:()=>void;onOk
    ════════════════════════════════════ */
 function TeacherPortalPage({teacher,users,works,comps,setWorks,onUpload,onBack}:{teacher:User;users:User[];works:Work[];comps:Comp[];setWorks:React.Dispatch<React.SetStateAction<Work[]>>;onUpload:()=>void;onBack:()=>void}){
   const[tab,setTab]=useState<"pending"|"approved"|"all">("pending");
-  const pending=useMemo(()=>works.filter(w=>!isApproved(w)).sort((a,b)=>b.at.localeCompare(a.at)),[works]);
-  const approved=useMemo(()=>works.filter(w=>isApproved(w)).sort((a,b)=>b.at.localeCompare(a.at)),[works]);
-  const myStudents=useMemo(()=>users.filter(u=>u.role==="student"&&u.teacherId===teacher.id).length,[users,teacher.id]);
-  const list = tab==="pending"?pending:tab==="approved"?approved:works;
+  const[selClass,setSelClass]=useState<{grade:string;section:string}|null>(null);
+  const[showAllClasses,setShowAllClasses]=useState(false);
+
+  /* every student account assigned to this teacher */
+  const myStudents=useMemo(()=>users.filter(u=>u.role==="student"&&u.teacherId===teacher.id),[users,teacher.id]);
+
+  /* class groups = grade + section, each with its own submission counters */
+  const classes=useMemo(()=>{
+    const map=new Map<string,{grade:string;section:string;studentIds:string[];works:number;pending:number;approved:number}>();
+    myStudents.forEach(st=>{
+      const grade=st.grade||"Grade —";
+      const section=st.section||"—";
+      const key=`${grade}||${section}`;
+      if(!map.has(key)) map.set(key,{grade,section,studentIds:[],works:0,pending:0,approved:0});
+      map.get(key)!.studentIds.push(st.id);
+    });
+    map.forEach(g=>{
+      works.forEach(w=>{
+        if(!g.studentIds.includes(w.studentId)) return;
+        g.works+=1;
+        if(isApproved(w)) g.approved+=1; else g.pending+=1;
+      });
+    });
+    const order=(g:string)=>{const n=parseInt(String(g).replace(/[^0-9]/g,""),10);return isNaN(n)?99:n;};
+    return Array.from(map.values()).sort((a,b)=>order(a.grade)-order(b.grade)||String(a.section).localeCompare(String(b.section)));
+  },[myStudents,works]);
+
+  const classIds=selClass?myStudents.filter(st=>(st.grade||"Grade —")===selClass.grade&&(st.section||"—")===selClass.section).map(st=>st.id):null;
+  const scoped = classIds ? works.filter(w=>classIds.includes(w.studentId)) : works;
+  const pending=useMemo(()=>scoped.filter(w=>!isApproved(w)).sort((a,b)=>b.at.localeCompare(a.at)),[scoped]);
+  const approved=useMemo(()=>scoped.filter(w=>isApproved(w)).sort((a,b)=>b.at.localeCompare(a.at)),[scoped]);
+  const list = tab==="pending"?pending:tab==="approved"?approved:scoped;
+
   function approve(w:Work){
     if(w.studentId===teacher.id) return;
     setWorks(p=>p.map(x=>x.id===w.id?{...x,status:"approved" as WorkStatus,approvedBy:teacher.fullName,approvedAt:new Date().toISOString()}:x));
   }
+
+  const gradeIcon=(g:string)=>{
+    const n=parseInt(String(g).replace(/[^0-9]/g,""),10);
+    if(!isNaN(n)) return n<=2?"🧸":n<=5?"📚":n<=9?"🔬":"🎓";
+    return "📚";
+  };
+
   return(
     <div className="relative min-h-screen bg-[linear-gradient(180deg,#0b1028,#0f1a3d,#0d1230)] text-white"><Bg/>
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0b1028]/85 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-white/[0.07] bg-[#0b1028]/85 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <Logo s/>
-            <div>
+            <div className="min-w-0">
               <div className="text-[10px] font-black uppercase tracking-[0.28em] text-sky-300">Teacher Portal</div>
-              <h1 className="text-lg font-black leading-tight">{teacher.fullName}</h1>
-              <p className="text-[11px] font-semibold text-white/40">@{teacher.username} • {teacher.grade||"All grades"}</p>
+              <h1 className="truncate text-base font-black leading-tight sm:text-lg">{teacher.fullName}</h1>
+              <p className="truncate text-[11px] font-semibold text-white/40">@{teacher.username} • {classes.length} classes • {myStudents.length} students</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -838,46 +874,133 @@ function TeacherPortalPage({teacher,users,works,comps,setWorks,onUpload,onBack}:
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-5 py-8 sm:px-6">
-        <div className="mb-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[{l:"Pending",v:pending.length,s:"بانتظار الاعتماد",c:"text-[#FDB51F]"},{l:"Approved",v:approved.length,s:"معتمدة",c:"text-emerald-300"},{l:"All Works",v:works.length,s:"كل المشاركات",c:"text-sky-300"},{l:"My Students",v:myStudents,s:"طلابي",c:"text-pink-300"}].map(k=>(
-            <div key={k.l} className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-              <div className="text-[9px] font-black uppercase tracking-[0.2em] text-white/40">{k.l}</div>
-              <div className={cn("mt-1 text-2xl font-black",k.c)}>{k.v}</div>
-              <div className="text-[11px] font-bold text-white/40" dir="rtl">{k.s}</div>
+
+      <main className="mx-auto max-w-6xl px-5 py-7 sm:px-6">
+        {!selClass ? (
+          <>
+            {/* ── overview ── */}
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-black text-white sm:text-2xl">My Classes • صفوفي</h2>
+                <p className="mt-0.5 text-xs font-semibold text-white/40">اختر صفاً لعرض أعمال طلابه المعتمد لها</p>
+              </div>
+              <div className="flex gap-2">
+                <Pill t="gold">⏳ {works.filter(w=>myStudents.some(s=>s.id===w.studentId)&&!isApproved(w)).length} pending</Pill>
+                <Pill t="green">✅ {works.filter(w=>myStudents.some(s=>s.id===w.studentId)&&isApproved(w)).length} approved</Pill>
+              </div>
             </div>
-          ))}
-        </div>
-        <div className="mb-6 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/5 p-1.5">
-          {([{k:"pending",t:`⏳ Pending (${pending.length})`},{k:"approved",t:`✅ Approved (${approved.length})`},{k:"all",t:`📁 All (${works.length})`}] as const).map(t=>(
-            <button key={t.k} onClick={()=>setTab(t.k)} className={cn("rounded-xl px-4 py-2.5 text-xs font-black transition sm:text-sm",tab===t.k?"bg-[#FDB51F] text-slate-950":"text-white/50 hover:text-white")}>{t.t}</button>
-          ))}
-        </div>
-        {list.length===0&&<div className="rounded-3xl border border-white/10 bg-white/5 p-14 text-center"><p className="text-4xl mb-3">🎬</p><p className="text-sm font-bold text-white/40">لا توجد مشاركات هنا • Nothing here yet</p></div>}
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {list.map(w=>{
-            const stu=users.find(x=>x.id===w.studentId);
-            const comp=comps.find(c=>c.id===w.competitionId);
-            const own=w.studentId===teacher.id;
-            return(
-              <article key={w.id} className="overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm">
-                <SecureVideo path={w.videoUrl} poster={w.thumb} controls className="w-full aspect-video object-cover bg-black"/>
-                <div className="p-4">
-                  <div className="mb-2 flex flex-wrap items-center gap-2"><StatusPill w={w}/>{own&&<span className="rounded-full border border-sky-400/25 bg-sky-500/15 px-2 py-0.5 text-[10px] font-black text-sky-200">Yours</span>}</div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#1697E8]">{comp?.nameEn||"—"}</div>
-                  <h3 className="mt-1 text-sm font-black leading-snug text-white">{w.title}</h3>
-                  <p className="mt-1 text-xs font-bold text-[#FDB51F]">👤 {stu?.fullName||"—"}</p>
-                  <p className="text-[11px] text-white/35">{stu?.grade||""}{stu?.section?` • ${stu.section}`:""}</p>
-                  {!isApproved(w)?(
-                    <button disabled={own} onClick={()=>approve(w)} className={cn("mt-3 w-full rounded-2xl py-3 text-xs font-black transition",own?"cursor-not-allowed bg-white/5 text-white/25":"bg-emerald-500 text-slate-950 hover:bg-emerald-400")}>{own?"لا يمكنك اعتماد فيديوك":"✅ Approve • اعتماد"}</button>
-                  ):(
-                    <div className="mt-3 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2.5 text-[11px] font-bold text-emerald-200">✅ Approved {w.approvedBy?`by ${w.approvedBy}`:""}</div>
-                  )}
+
+            <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {classes.map(c=>{
+                const co=getClassColor(c.grade);
+                return(
+                  <button key={`${c.grade}-${c.section}`} onClick={()=>{setSelClass({grade:c.grade,section:c.section});setTab("pending");}}
+                    className="group relative overflow-hidden rounded-3xl border border-white/[0.08] p-5 text-left transition hover:-translate-y-0.5 hover:border-white/20"
+                    style={{background:`linear-gradient(150deg,${co.bg},rgba(15,23,42,0.75))`}}>
+                    <span className="absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-30 blur-2xl" style={{background:co.border}} aria-hidden="true"/>
+                    <div className="relative">
+                      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-black/25 text-2xl ring-1 ring-white/15">{gradeIcon(c.grade)}</div>
+                      <h3 className="mt-3 text-base font-black leading-tight text-white">{c.grade}</h3>
+                      <p className="text-xs font-bold text-white/55">Section {c.section}</p>
+                      <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] font-black">
+                        <span className="rounded-full bg-black/30 px-2 py-1 text-white/70">👥 {c.studentIds.length}</span>
+                        <span className="rounded-full bg-black/30 px-2 py-1 text-sky-200">🎬 {c.works}</span>
+                        {c.pending>0&&<span className="rounded-full bg-[#FDB51F]/25 px-2 py-1 text-[#FFE29A]">⏳ {c.pending}</span>}
+                      </div>
+                      <span className="mt-3 block text-[11px] font-black text-white/40 transition group-hover:text-white">Open class →</span>
+                    </div>
+                  </button>
+                );
+              })}
+              {classes.length===0&&(
+                <div className="col-span-2 rounded-3xl border border-white/[0.08] bg-white/[0.03] p-8 text-center sm:col-span-3 lg:col-span-4">
+                  <p className="text-3xl mb-2">🏫</p>
+                  <p className="text-sm font-bold text-white/50">لا توجد صفوف مسندة إلى حسابك بعد</p>
+                  <p className="mt-1 text-[11px] text-white/35">No classes are assigned to your account yet — ask the administrator.</p>
+                  <button onClick={()=>setShowAllClasses(true)} className="mt-4 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-black text-white/70 hover:bg-white/10">📂 Browse all submissions</button>
                 </div>
-              </article>
-            );
-          })}
-        </div>
+              )}
+            </div>
+
+            {classes.length>0&&(
+              <button onClick={()=>setShowAllClasses(v=>!v)} className="mb-4 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-black text-white/60 hover:bg-white/10">{showAllClasses?"▲ Hide all submissions":"📂 All submissions • كل المشاركات"}</button>
+            )}
+
+            {showAllClasses&&(
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {works.slice().sort((a,b)=>b.at.localeCompare(a.at)).map(w=>{
+                  const stu=users.find(x=>x.id===w.studentId);
+                  const comp=comps.find(c=>c.id===w.competitionId);
+                  const own=w.studentId===teacher.id;
+                  return(
+                    <article key={w.id} className="overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.03]">
+                      <SecureVideo path={w.videoUrl} poster={w.thumb} controls className="w-full aspect-video object-cover bg-black"/>
+                      <div className="p-4">
+                        <div className="mb-2 flex flex-wrap items-center gap-2"><StatusPill w={w}/>{own&&<span className="rounded-full border border-sky-400/25 bg-sky-500/15 px-2 py-0.5 text-[10px] font-black text-sky-200">Yours</span>}</div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#1697E8]">{comp?.nameEn||"—"}</div>
+                        <h3 className="mt-1 text-sm font-black leading-snug text-white">{w.title}</h3>
+                        <p className="mt-1 text-xs font-bold text-[#FDB51F]">👤 {stu?.fullName||"—"}</p>
+                        <p className="text-[11px] text-white/35">{stu?.grade||""}{stu?.section?` • ${stu.section}`:""}</p>
+                        {!isApproved(w)?(
+                          <button disabled={own} onClick={()=>approve(w)} className={cn("mt-3 w-full rounded-2xl py-3 text-xs font-black transition",own?"cursor-not-allowed bg-white/5 text-white/25":"bg-emerald-500 text-slate-950 hover:bg-emerald-400")}>{own?"لا يمكنك اعتماد فيديوك":"✅ Approve • اعتماد"}</button>
+                        ):(
+                          <div className="mt-3 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2.5 text-[11px] font-bold text-emerald-200">✅ Approved {w.approvedBy?`by ${w.approvedBy}`:""}</div>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {/* ── class detail ── */}
+            <div className="mb-5 flex flex-wrap items-center gap-3">
+              <button onClick={()=>{setSelClass(null);setTab("pending");}} className="rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-black text-white hover:bg-white/10">← All classes</button>
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/10 text-xl ring-1 ring-white/15">{gradeIcon(selClass.grade)}</span>
+                <div className="min-w-0">
+                  <h2 className="truncate text-lg font-black leading-tight text-white">{selClass.grade} • Section {selClass.section}</h2>
+                  <p className="text-[11px] font-semibold text-white/40">{(classIds||[]).length} students • {scoped.length} submissions</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-5 flex flex-wrap gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-1.5">
+              {([{k:"pending",t:`⏳ Pending (${pending.length})`},{k:"approved",t:`✅ Approved (${approved.length})`},{k:"all",t:`📁 All (${scoped.length})`}] as const).map(t=>(
+                <button key={t.k} onClick={()=>setTab(t.k)} className={cn("rounded-xl px-4 py-2.5 text-xs font-black transition sm:text-sm",tab===t.k?"bg-[#FDB51F] text-slate-950":"text-white/50 hover:text-white")}>{t.t}</button>
+              ))}
+            </div>
+
+            {list.length===0&&<div className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-14 text-center"><p className="mb-3 text-4xl">🎬</p><p className="text-sm font-bold text-white/40">لا توجد مشاركات في هذا الصف • Nothing here yet</p></div>}
+
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {list.map(w=>{
+                const stu=users.find(x=>x.id===w.studentId);
+                const comp=comps.find(c=>c.id===w.competitionId);
+                const own=w.studentId===teacher.id;
+                return(
+                  <article key={w.id} className="overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.03]">
+                    <SecureVideo path={w.videoUrl} poster={w.thumb} controls className="w-full aspect-video object-cover bg-black"/>
+                    <div className="p-4">
+                      <div className="mb-2 flex flex-wrap items-center gap-2"><StatusPill w={w}/>{own&&<span className="rounded-full border border-sky-400/25 bg-sky-500/15 px-2 py-0.5 text-[10px] font-black text-sky-200">Yours</span>}</div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#1697E8]">{comp?.nameEn||"—"}</div>
+                      <h3 className="mt-1 text-sm font-black leading-snug text-white">{w.title}</h3>
+                      <p className="mt-1 text-xs font-bold text-[#FDB51F]">👤 {stu?.fullName||"—"}</p>
+                      <p className="text-[11px] text-white/35">{stu?.grade||""}{stu?.section?` • ${stu.section}`:""}</p>
+                      {!isApproved(w)?(
+                        <button disabled={own} onClick={()=>approve(w)} className={cn("mt-3 w-full rounded-2xl py-3 text-xs font-black transition",own?"cursor-not-allowed bg-white/5 text-white/25":"bg-emerald-500 text-slate-950 hover:bg-emerald-400")}>{own?"لا يمكنك اعتماد فيديوك":"✅ Approve • اعتماد"}</button>
+                      ):(
+                        <div className="mt-3 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2.5 text-[11px] font-bold text-emerald-200">✅ Approved {w.approvedBy?`by ${w.approvedBy}`:""}</div>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </>
+        )}
       </main>
     </div>
   );
@@ -1033,12 +1156,12 @@ export default function App(){
   if(view==="classBoard"&&selClass)return<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/>;
   if(view==="adminLogin")return<AdminLoginPage adminPw={adminPw} onBack={()=>setView("home")} onOk={()=>setView("admin")}/>;
   if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw} onBack={()=>setView("home")} />;
-  if(view==="studentLogin")return<StudentLoginPage users={users} onBack={()=>setView("home")} onOk={s=>{setCurrentStudent(s);setView("student")}}/>;
+  if(view==="studentLogin")return<StudentLoginPage users={users} onBack={()=>setView("home")} onOk={s=>{ if(s.role==="teacher"){setCurrentTeacher(s);setCurrentStudent(s);setView("teacherPortal");} else {setCurrentStudent(s);setView("student");} }}/>;
   if(view==="teacherLogin")return<TeacherLoginPage users={users} onBack={()=>setView("home")} onOk={t=>{setCurrentTeacher(t);setCurrentStudent(t);setView("teacherPortal")}}/>;
   if(view==="teacherPortal"&&currentTeacher)return<TeacherPortalPage teacher={currentTeacher} users={users} works={works} comps={comps} setWorks={setWorks} onUpload={()=>{setCurrentStudent(currentTeacher);setView("student")}} onBack={()=>{setCurrentTeacher(null);setCurrentStudent(null);setView("home")}}/>;
   if(view==="teacherPortal"&&!currentTeacher)return<TeacherLoginPage users={users} onBack={()=>setView("home")} onOk={t=>{setCurrentTeacher(t);setCurrentStudent(t);setView("teacherPortal")}}/>;
   if(view==="student"&&currentStudent)return<StudentPage student={currentStudent} comps={comps} works={works} evals={evals} certs={certs} selCompId={selCompId} setWorks={setWorks} onBack={()=>{setCurrentStudent(null);setView("home")}}/>;
-  if(view==="student"&&!currentStudent)return<StudentLoginPage users={users} onBack={()=>setView("home")} onOk={s=>{setCurrentStudent(s);setView("student")}}/>;
+  if(view==="student"&&!currentStudent)return<StudentLoginPage users={users} onBack={()=>setView("home")} onOk={s=>{ if(s.role==="teacher"){setCurrentTeacher(s);setCurrentStudent(s);setView("teacherPortal");} else {setCurrentStudent(s);setView("student");} }}/>;
   return null;
 }
 
