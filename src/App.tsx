@@ -225,7 +225,7 @@ function sv(k:string,v:any){
         const {data:cloudIds,error:listErr} = await supabase.from("competitions_cloud").select("id");
         if(!listErr && Array.isArray(cloudIds)){
           const keep = new Set([...rows.map((r:any)=>r.id),"__meta__"]);
-          const stale = cloudIds.map((r:any)=>String(r.id)).filter((id:string)=>!keep.has(id));
+          const stale = cloudIds.map((r:any)=>String(r.id)).filter((id:string)=>!keep.has(id) && !id.startsWith("__"));
           for(const id of stale){
             await supabase.from("competitions_cloud").delete().eq("id",id);
           }
@@ -248,6 +248,26 @@ function sv(k:string,v:any){
           const {error:legacyErr} = await supabase.from("works_cloud").upsert(legacy,{onConflict:"id"});
           if(legacyErr) console.error("works upsert (legacy):", legacyErr.message);
         }
+
+        /* ── APPROVALS: stored in competitions_cloud so they persist even when the
+              works_cloud table has no status columns (single source of truth). ── */
+        try{
+          const approved = v.filter((w:any)=>w && w.status==="approved");
+          const approveRows = approved.map((w:any)=>({
+            id:"__approval__"+String(w.id),
+            name_en:JSON.stringify({by:w.approvedBy||"",at:w.approvedAt||new Date().toISOString()}),
+            name_ar:"approval", logo_url:"", grades:[], rules_ar:"", rules_en:"",
+            closing_date:"", cert_date:"", started:true, archived:true, criteria:[], eval_code:""
+          }));
+          if(approveRows.length>0){
+            const {error:apErr} = await supabase.from("competitions_cloud").upsert(approveRows,{onConflict:"id"});
+            if(apErr) console.error("approval upsert:", apErr.message);
+          }
+          const {data:existing} = await supabase.from("competitions_cloud").select("id").like("id","__approval__%");
+          const keep = new Set(approved.map((w:any)=>"__approval__"+String(w.id)));
+          const stale = (existing||[]).map((r:any)=>String(r.id)).filter((id:string)=>!keep.has(id));
+          for(const id of stale) await supabase.from("competitions_cloud").delete().eq("id",id);
+        }catch(e){ console.warn("approval sync skipped", e); }
       }
       if(k===SK.e && Array.isArray(v) && v.length > 0){
         const rows = v.map((e:any)=>({
@@ -357,7 +377,8 @@ function SecureVideo(props: React.VideoHTMLAttributes<HTMLVideoElement> & { path
 /* ═══════ REVIEW / APPROVAL RULES ═══════ */
 const MAX_VIDEO_MB = 50;
 const MAX_VIDEO_SECONDS = 180; // 3 minutes — matches the current Supabase storage tier
-const isApproved = (w:Work)=> w.status === "approved";
+/* A work is only public when the cloud row says "approved" AND a teacher is recorded. */
+const isApproved = (w:Work)=> w.status === "approved" && Boolean(w.approvedBy);
 
 function StatusPill({w}:{w:Work}){
   if(isApproved(w)){
@@ -1129,6 +1150,22 @@ export default function App(){
           const adminRow = dbComps.find((c:any)=>String(c.id)==="__admin__");
           if(adminRow?.name_en) setAdminPw(String(adminRow.name_en));
           const realRows = dbComps.filter((c:any)=>String(c.id)!=="__meta__" && !String(c.id).startsWith("__"));
+          /* approvals are cached in competitions_cloud → restore them on every device */
+          const approvalRows = dbComps.filter((c:any)=>String(c.id).startsWith("__approval__"));
+          if(approvalRows.length>0){
+            const approvalMap = new Map<string,{by?:string;at?:string}>();
+            approvalRows.forEach((r:any)=>{
+              const wid = String(r.id).replace("__approval__","");
+              let meta:any = {};
+              try{ meta = r.name_en ? JSON.parse(r.name_en) : {}; }catch{}
+              approvalMap.set(wid, {by:meta.by, at:meta.at});
+            });
+            setWorks(prev=>prev.map(w=>{
+              const meta = approvalMap.get(w.id);
+              if(!meta) return w;
+              return {...w, status:"approved" as WorkStatus, approvedBy:w.approvedBy||meta.by, approvedAt:w.approvedAt||meta.at};
+            }));
+          }
           const initialized = dbComps.some((c:any)=>String(c.id)==="__meta__");
           if(realRows.length>0){
             const mapped = realRows.map((c:any)=>({
@@ -2490,7 +2527,9 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
         videoUrl,
         thumb: "",
         at: new Date().toISOString(),
-        status: "pending" as WorkStatus
+        status: "pending" as WorkStatus,
+        approvedBy: undefined as string|undefined,
+        approvedAt: undefined as string|undefined
       };
       // Supabase is the source of truth; the legacy endpoint is best-effort only.
       try {
