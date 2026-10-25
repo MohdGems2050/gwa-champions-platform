@@ -911,7 +911,7 @@ function TeacherPortalPage({teacher,users,works,comps,setWorks,onUpload,onBack}:
 
   return(
     <div className="relative min-h-screen bg-[linear-gradient(180deg,#0b1028,#0f1a3d,#0d1230)] text-white"><Bg/>
-      <header className="sticky top-0 z-[60] border-b border-white/10" style={{background:"#0b1028"}}>
+      <header className="fixed inset-x-0 top-0 z-[60] border-b border-white/10" style={{background:"#0b1028", paddingTop:"calc(env(safe-area-inset-top, 0px) + 12px)"}}>
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <Logo s/>
@@ -1251,10 +1251,11 @@ function HomePage({onStart,onAdmin,onStudent,onTeacher}:{onStart:()=>void;onAdmi
     {num:"10",en:"Criteria",ar:"معايير التقييم",c:"text-emerald-300"},
   ];
   return(
-  <div className="relative min-h-screen overflow-x-clip bg-[linear-gradient(180deg,#0b1028,#0f1535,#0d1230)] text-white"><Bg/>
+  <div className="relative min-h-[100dvh] bg-[linear-gradient(180deg,#0b1028,#0f1535,#0d1230)] text-white"><Bg/>
 
-    {/* ── HEADER ── */}
-    <header className="sticky top-0 z-[60] border-b border-white/10 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.9)]" style={{background:"#0b1028"}}>
+    {/* ── HEADER (fixed: stays visible in normal, fullscreen and standalone mode) ── */}
+    <header className="fixed inset-x-0 top-0 z-[60] border-b border-white/10 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.9)]"
+      style={{background:"#0b1028", paddingTop:"env(safe-area-inset-top, 0px)"}}>
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3 sm:gap-4">
           <Logo s/>
@@ -1271,10 +1272,13 @@ function HomePage({onStart,onAdmin,onStudent,onTeacher}:{onStart:()=>void;onAdmi
       </div>
     </header>
 
+    {/* spacer matching the fixed header height (2 rows on small screens, 1 row from lg) */}
+    <div aria-hidden="true" style={{height:"calc(env(safe-area-inset-top, 0px) + 104px)"}} className="lg:!h-[84px]"/>
+
     <main className="relative z-10 mx-auto max-w-7xl px-5 pb-16 pt-8 sm:px-6 lg:pt-12">
 
       {/* ── HERO PHOTO: full, uncropped, taller banner ── */}
-      <section aria-label="GWA Champions" className="relative mx-auto max-w-6xl">
+      <section aria-label="GWA Champions" className="relative mx-auto max-w-6xl overflow-x-clip py-1">
         <div className="pointer-events-none absolute -inset-3 rounded-[2.5rem] bg-gradient-to-br from-[#1697E8]/25 via-[#FDB51F]/12 to-transparent blur-3xl sm:-inset-5" aria-hidden="true"/>
         <figure className="relative m-0">
           <div className="overflow-hidden rounded-[1.75rem] border border-[#FDB51F]/25 bg-[#0b1028] shadow-[0_30px_90px_-25px_rgba(22,151,232,0.5)] sm:rounded-[2.25rem]">
@@ -1420,7 +1424,7 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
   if(!selComp){
     return(
       <div className="relative min-h-screen bg-[linear-gradient(180deg,#0d1230,#111a45,#0d1230)] text-white"><Bg/>
-        <header className="sticky top-0 z-[60] border-b border-white/10 px-6 py-4 flex justify-between items-center" style={{background:"#0f1535"}}>
+        <header className="fixed inset-x-0 top-0 z-[60] border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4 flex justify-between items-center" style={{background:"#0f1535", paddingTop:"calc(env(safe-area-inset-top, 0px) + 12px)"}}>
           <div className="flex items-center gap-4"><Logo s/><div><h2 className="text-lg font-black uppercase italic">Active Competitions</h2><p className="text-sm text-white/40" dir="rtl">المسابقات النشطة</p></div></div>
           <div className="flex gap-3">
             <button onClick={()=>{ if(adminMode) setAdminMode(false); else setAskPw(true); }} className={cn("rounded-full border px-4 py-2.5 text-xs font-black transition",adminMode?"border-emerald-400/40 bg-emerald-500/20 text-emerald-200":"border-white/10 bg-white/5 text-white/70 hover:bg-white/10")}>{adminMode?"✅ Admin mode":"🔒 Admin"}</button>
@@ -1428,7 +1432,7 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
             <button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">🏠 Home</button>
           </div>
         </header>
-        <main className="max-w-7xl mx-auto px-6 py-10">
+        <main className="max-w-7xl mx-auto px-6 pb-10" style={{paddingTop:"calc(env(safe-area-inset-top, 0px) + 88px)"}}>
           <p className="text-center text-white/50 mb-8 text-lg">Select a competition to view all student submissions • اختر مسابقة لمشاهدة جميع المشاركات</p>
           {active.length===0&&<div className="rounded-3xl border border-white/10 bg-white/5 p-16 text-center"><p className="text-4xl mb-4">🏆</p><p className="text-xl text-white/40">No active competitions • لا توجد مسابقات نشطة</p></div>}
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -1491,7 +1495,7 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
   // ── COMPETITION WORKS VIEW (competition selected) ──
   return(
     <div className="relative min-h-screen bg-[linear-gradient(180deg,#0d1230,#111a45,#0d1230)] text-white"><Bg/>
-      <header className="sticky top-0 z-[60] border-b border-white/10 px-6 py-4 flex justify-between items-center" style={{background:"#0f1535"}}>
+      <header className="fixed inset-x-0 top-0 z-[60] border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4 flex justify-between items-center" style={{background:"#0f1535", paddingTop:"calc(env(safe-area-inset-top, 0px) + 12px)"}}>
         <button onClick={()=>{setSelCompId(null);setGradeFilter(null)}} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">← All Competitions</button>
         <div className="flex gap-3">
           <button onClick={onWinners} className="rounded-xl px-4 py-2 text-sm font-black bg-gradient-to-r from-[#FDB51F] to-[#E21455] text-white shadow-lg hover:brightness-110">🏅 Winners</button>
@@ -1500,7 +1504,7 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
       </header>
 
       {/* Competition Header */}
-      <section className="relative z-10 border-b border-white/10 bg-[radial-gradient(circle_at_top,rgba(22,151,232,0.2),transparent_35%),linear-gradient(160deg,#111a45,#0d1230)] px-6 py-10">
+      <section className="relative z-10 border-b border-white/10 bg-[radial-gradient(circle_at_top,rgba(22,151,232,0.2),transparent_35%),linear-gradient(160deg,#111a45,#0d1230)] px-6 py-10" style={{paddingTop:"calc(env(safe-area-inset-top, 0px) + 84px)"}}>
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center gap-5 mb-6">
             <img src={selComp.logoUrl||"/gems-logo.png"} alt="" className="h-18 w-18 rounded-2xl bg-white p-2 object-contain shadow-lg"/>
@@ -1528,7 +1532,7 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
         </div>
       </section>
 
-      <main className="max-w-7xl mx-auto px-6 py-10">
+      <main className="max-w-7xl mx-auto px-6 pb-10" style={{paddingTop:"calc(env(safe-area-inset-top, 0px) + 88px)"}}>
         {compWorks.length===0&&<div className="rounded-3xl border border-white/10 bg-white/5 p-16 text-center"><p className="text-xl text-white/40">{gradeFilter?`No works from ${gradeFilter} yet`:"No works submitted yet"}</p></div>}
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
           {compWorks.map(w=><WorkCard key={w.id} w={w} users={users} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={onPromote}/>)}
@@ -1545,13 +1549,13 @@ function ClassBoardPage({cls,users,works,evals,comps,likes,setLikes,setEvals,set
   const classWorks=useMemo(()=>works.filter(w=>{const s=users.find(u=>u.id===w.studentId);return s&&s.grade===cls.grade&&s.section===cls.section;}),[cls,users,works]);
   return(
     <div className="relative min-h-screen bg-[#050916] text-white"><Bg/>
-      <header className="sticky top-0 z-[60] border-b border-white/10 px-6 py-4 flex justify-between items-center" style={{background:"#050916"}}>
+      <header className="fixed inset-x-0 top-0 z-[60] border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4 flex justify-between items-center" style={{background:"#050916", paddingTop:"calc(env(safe-area-inset-top, 0px) + 12px)"}}>
         <button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white">← Back</button>
         <div className="flex items-center gap-3">
           <Logo s/>
         </div>
       </header>
-      <section className="relative z-10 border-b border-white/10 bg-[radial-gradient(circle_at_top,rgba(22,151,232,0.24),transparent_35%),linear-gradient(160deg,#111a45,#050916_80%)] px-6 py-16 text-center">
+      <section className="relative z-10 border-b border-white/10 bg-[radial-gradient(circle_at_top,rgba(22,151,232,0.24),transparent_35%),linear-gradient(160deg,#111a45,#050916_80%)] px-6 py-16 text-center" style={{paddingTop:"calc(env(safe-area-inset-top, 0px) + 84px)"}}>
         <div className="text-xs font-black uppercase tracking-[0.34em] text-white/40">Gallery of Excellence • معرض التميز</div>
         <h1 className="mt-4 text-5xl sm:text-7xl font-black uppercase tracking-tight">{cls.grade}</h1>
         <div className="mt-2 text-2xl font-black uppercase tracking-[0.28em] text-[#FDB51F]">Section {cls.section}</div>
@@ -1574,13 +1578,13 @@ function GlobalWorksPage({users,works,evals,comps,likes,setLikes,setEvals,setWor
   const sorted=useMemo(()=>[...works].sort((a,b)=>b.at.localeCompare(a.at)),[works]);
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
-      <header className="sticky top-0 z-[60] border-b border-white/10 px-6 py-4 flex justify-between items-center" style={{background:"#0f1535"}}>
+      <header className="fixed inset-x-0 top-0 z-[60] border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4 flex justify-between items-center" style={{background:"#0f1535", paddingTop:"calc(env(safe-area-inset-top, 0px) + 12px)"}}>
         <button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white">← Back</button>
         <div className="flex items-center gap-3">
           <Logo s/>
         </div>
       </header>
-      <section className="relative z-10 border-b border-white/10 bg-[radial-gradient(circle_at_top,rgba(253,181,31,0.1),transparent_35%),linear-gradient(160deg,#111a45,#0d1230)] px-6 py-14 text-center">
+      <section className="relative z-10 border-b border-white/10 bg-[radial-gradient(circle_at_top,rgba(253,181,31,0.1),transparent_35%),linear-gradient(160deg,#111a45,#0d1230)] px-6 py-14 text-center" style={{paddingTop:"calc(env(safe-area-inset-top, 0px) + 84px)"}}>
         <div className="text-xs font-black uppercase tracking-[0.34em] text-[#FDB51F] mb-3">Global Activity Feed • شاشة الجميع</div>
         <h1 className="text-4xl sm:text-6xl font-black uppercase">All Submissions</h1>
         <p className="mt-4 text-lg text-white/50" dir="rtl">جميع مشاركات الطلاب مرتبة حسب تاريخ التحميل</p>
@@ -1635,9 +1639,9 @@ function WinnersPage({comps,works,evals,users,likes,setLikes,certs,onPromote,adm
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
       <div className="pointer-events-none fixed top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-[#FDB51F]/8 blur-[100px] rounded-full"/>
-      <header className="sticky top-0 z-[60] border-b border-white/10 px-6 py-4 flex justify-between items-center" style={{background:"#0f1535"}}><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white">← Back</button><Logo s/></header>
+      <header className="fixed inset-x-0 top-0 z-[60] border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4 flex justify-between items-center" style={{background:"#0f1535", paddingTop:"calc(env(safe-area-inset-top, 0px) + 12px)"}}><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white">← Back</button><Logo s/></header>
 
-      <section className="relative z-10 px-6 py-14 text-center border-b border-white/10 bg-[radial-gradient(ellipse_at_top,rgba(253,181,31,0.15),transparent_45%)]">
+      <section className="relative z-10 px-6 py-14 text-center border-b border-white/10 bg-[radial-gradient(ellipse_at_top,rgba(253,181,31,0.15),transparent_45%)]" style={{paddingTop:"calc(env(safe-area-inset-top, 0px) + 84px)"}}>
         <div className="text-5xl mb-4">🏅</div>
         <h1 className="text-4xl sm:text-6xl font-black tracking-tight">Hall of <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FDB51F] via-yellow-300 to-[#FDB51F]">Champions</span></h1>
         <p className="mt-3 text-xl font-bold text-white/50" dir="rtl">قاعة الفائزين — أيقونات المسابقات المغلقة</p>
@@ -2150,11 +2154,11 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
 
   return(
     <div className="relative min-h-screen bg-[linear-gradient(180deg,#0d1230,#111a45,#0d1230)] text-white"><Bg/>
-      <header className="sticky top-0 z-[60] border-b border-white/10 px-6 py-4 flex justify-between items-center" style={{background:"#0f1535"}}>
+      <header className="fixed inset-x-0 top-0 z-[60] border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4 flex justify-between items-center" style={{background:"#0f1535", paddingTop:"calc(env(safe-area-inset-top, 0px) + 12px)"}}>
         <div className="flex items-center gap-4"><Logo s/><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#FDB51F]">Administration Portal • بوابة الإدارة</div><h1 className="text-xl font-black">User & Competition Management</h1></div></div>
         <div className="flex gap-3"><button onClick={()=>setTab("security")} className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-bold text-white hover:bg-white/10">🔑 Password</button><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-bold text-white hover:bg-white/10">Home</button></div>
       </header>
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="max-w-6xl mx-auto px-6 pb-8" style={{paddingTop:"calc(env(safe-area-inset-top, 0px) + 96px)"}}>
         <div className="flex flex-wrap gap-2 mb-8 bg-white/5 border border-white/10 rounded-2xl p-1.5 overflow-x-auto">
           {([["users","👥 Users"],["export","📊 Excel & Cards"],["comps","🏆 Competitions"],["archive","🗄️ Archive • الأرشيف"],["security","🔑 Security"]] as const).map(([k,l])=>(
             <button key={k} onClick={()=>setTab(k)} className={cn("rounded-xl px-5 py-2.5 text-sm font-black whitespace-nowrap transition",tab===k?"bg-[#FDB51F] text-slate-950":"text-white/50 hover:text-white")}>{l}</button>
@@ -2369,8 +2373,8 @@ function TeacherPage({teacher,users,works,comps,evals,setEvals,onBack}:{teacher:
   
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
-      <header className="sticky top-0 z-[60] border-b border-white/10 px-6 py-4 flex justify-between items-center" style={{background:"#0f1535"}}><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-sky-300">Teacher Account</div><h1 className="text-xl font-black">{teacher.fullName}</h1></div><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">Back</button></header>
-      <main className="max-w-4xl mx-auto px-6 py-10"><div className="grid gap-4 md:grid-cols-3 mb-10"><Stat l="Students" v={myStudents.length} s="طلابي"/><Stat l="Works" v={myWorks.length} s="الأعمال"/><Stat l="Criteria" v="10" s="عناصر"/></div>
+      <header className="fixed inset-x-0 top-0 z-[60] border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4 flex justify-between items-center" style={{background:"#0f1535", paddingTop:"calc(env(safe-area-inset-top, 0px) + 12px)"}}><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-sky-300">Teacher Account</div><h1 className="text-xl font-black">{teacher.fullName}</h1></div><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">Back</button></header>
+      <main className="max-w-4xl mx-auto px-6 pb-10" style={{paddingTop:"calc(env(safe-area-inset-top, 0px) + 96px)"}}><div className="grid gap-4 md:grid-cols-3 mb-10"><Stat l="Students" v={myStudents.length} s="طلابي"/><Stat l="Works" v={myWorks.length} s="الأعمال"/><Stat l="Criteria" v="10" s="عناصر"/></div>
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">{myWorks.map(w=>{const stu=myStudents.find(s=>s.id===w.studentId);const co=comps.find(c=>c.id===w.competitionId);const ev=evals.find(e=>e.workId===w.id);if(!stu)return null;return(
           <article key={w.id} className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden"><SecureVideo path={w.videoUrl} poster={w.thumb} controls className="w-full aspect-video object-cover"/><div className="p-5"><div className="text-[10px] font-black uppercase text-sky-300">{co?.nameEn}</div><h3 className="text-base font-black text-white mt-1">{w.title}</h3><p className="text-sm text-[#FDB51F] mt-1">👤 {stu.fullName}</p><div className="mt-4"><div className="w-full rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-sm font-bold text-white/50 text-center">Use Evaluation Code on Works ⬆</div></div></div></article>);})}</div></main>
     </div>
@@ -2558,8 +2562,8 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
       {step==="consent"&&selComp&&<ConsentModal student={student} compAr={selComp.nameAr} compEn={selComp.nameEn} onOk={()=>setStep("form")} onNo={()=>setStep("idle")}/>}
-      <header className="sticky top-0 z-[60] border-b border-white/10 px-6 py-4 flex justify-between items-center" style={{background:"#0f1535"}}><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#FDB51F]">Student Portal</div>{student.role==="teacher"&&<div className="mt-1 inline-block rounded-full bg-[#FDB51F]/15 border border-[#FDB51F]/30 px-3 py-1 text-[10px] font-black text-[#FFE29A]">👩‍🏫 Teacher upload mode — uploads need another teacher's approval</div>}<h1 className="text-xl font-black">{student.fullName}</h1><p className="text-sm text-white/50">{student.grade} • {student.section}</p></div><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">Back</button></header>
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <header className="fixed inset-x-0 top-0 z-[60] border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4 flex justify-between items-center" style={{background:"#0f1535", paddingTop:"calc(env(safe-area-inset-top, 0px) + 12px)"}}><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#FDB51F]">Student Portal</div>{student.role==="teacher"&&<div className="mt-1 inline-block rounded-full bg-[#FDB51F]/15 border border-[#FDB51F]/30 px-3 py-1 text-[10px] font-black text-[#FFE29A]">👩‍🏫 Teacher upload mode — uploads need another teacher's approval</div>}<h1 className="text-xl font-black">{student.fullName}</h1><p className="text-sm text-white/50">{student.grade} • {student.section}</p></div><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">Back</button></header>
+      <main className="max-w-6xl mx-auto px-6 pb-8" style={{paddingTop:"calc(env(safe-area-inset-top, 0px) + 96px)"}}>
         <div className="flex flex-wrap gap-2 mb-8 bg-white/5 border border-white/10 rounded-2xl p-1.5">
           <button onClick={()=>setSTab("participate")} className={cn("rounded-xl px-5 py-3 text-sm font-black",sTab==="participate"?"bg-[#FDB51F] text-slate-950":"text-white/50")}>🎓 Participate</button>
           <button onClick={()=>setSTab("submissions")} className={cn("rounded-xl px-5 py-3 text-sm font-black",sTab==="submissions"?"bg-[#1697E8] text-white":"text-white/50")}>📁 My Works ({myWorks.length})</button>
