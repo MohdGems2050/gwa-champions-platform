@@ -2686,84 +2686,171 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
   const selComp=avail.find(c=>c.id===cid);
   
   function printCert(cert:Cert){
-    const win=window.open("","_blank","width=1100,height=800");
+    const win=window.open("","_blank","width=1160,height=840");
     if(!win)return;
     const safe=(v:any)=>String(v??"").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-    const medal=MEDALS[cert.rank-1]||"🏅";
+    const medal=MEDALS[cert.rank-1]||"★";
     const serial=`GWA-${String(cert.issuedAt||"").replace(/-/g,"")}-${String(cert.id).slice(-4).toUpperCase()}`;
+    const verifyUrl="gwa-champions-platform.vercel.app";
     win.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
-    <title>Certificate — ${safe(student.fullName)}</title>
+    <title>Certificate of Appreciation — ${safe(student.fullName)}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Playfair+Display:wght@600;700;800;900&family=Montserrat:wght@500;600;700;800&display=swap" rel="stylesheet"/>
     <style>
       @page{size:A4 landscape;margin:0}
       *{box-sizing:border-box;margin:0;padding:0}
-      body{font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;background:#eef1f6;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:18px}
-      .sheet{width:1050px;max-width:100%;aspect-ratio:1.414/1;background:#fffdf8;border:1px solid #d8c9a6;border-radius:10px;position:relative;overflow:hidden;box-shadow:0 24px 60px rgba(15,30,70,.18);display:flex;align-items:center;justify-content:center}
-      .sheet:before{content:"";position:absolute;inset:14px;border:3px solid #1f2e76;border-radius:6px;pointer-events:none}
-      .sheet:after{content:"";position:absolute;inset:22px;border:1px solid #c9a227;border-radius:4px;pointer-events:none}
-      .glow{position:absolute;width:420px;height:420px;border-radius:50%;filter:blur(80px);opacity:.20;pointer-events:none}
-      .g1{background:#1697e8;top:-160px;left:-120px}.g2{background:#fdb51f;bottom:-180px;right:-120px}
-      .inner{position:relative;z-index:2;width:100%;padding:52px 66px;text-align:center}
-      .logo{height:62px;width:auto;object-fit:contain;margin:0 auto 10px;display:block}
-      .school{font-size:12px;letter-spacing:.34em;text-transform:uppercase;color:#1f2e76;font-weight:800}
-      .ar-school{font-size:13px;color:#6b7280;margin-top:3px;font-weight:600}
-      .rule{width:70px;height:3px;background:linear-gradient(90deg,#fdb51f,#e21455);margin:16px auto}
-      .kicker{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:#1697e8;font-weight:800}
-      h1{font-size:40px;line-height:1.1;color:#1f2e76;font-weight:900;margin:8px 0 2px;letter-spacing:-.5px}
-      .ar-title{font-size:20px;color:#b58a1b;font-weight:800;margin-bottom:6px}
-      .presented{font-size:13px;color:#6b7280;margin-top:14px;letter-spacing:.06em}
-      .name{font-size:42px;color:#12224f;font-weight:900;margin:8px 0 4px;letter-spacing:-.5px}
-      .meta{font-size:13px;color:#6b7280;font-weight:600}
-      .award{margin:20px auto 0;max-width:640px;font-size:15px;line-height:1.7;color:#374151}
-      .award b{color:#1f2e76}
-      .badges{display:flex;gap:14px;justify-content:center;margin-top:20px}
-      .badge{border-radius:999px;padding:9px 22px;font-size:13px;font-weight:900;letter-spacing:.04em}
-      .rank{background:linear-gradient(135deg,#fdb51f,#e21455);color:#fff;box-shadow:0 8px 20px rgba(226,20,85,.22)}
-      .score{background:#f1f5fb;color:#1f2e76;border:1px solid #d6e2f2}
-      .foot{margin-top:34px;display:flex;align-items:flex-end;justify-content:space-between;gap:24px;text-align:left}
-      .sig{flex:1}
-      .sig .line{height:1px;background:#cbd5e1;margin-bottom:6px}
-      .sig .who{font-size:12px;font-weight:800;color:#1f2e76}
-      .sig .role{font-size:10px;color:#9ca3af;letter-spacing:.12em;text-transform:uppercase}
-      .seal{width:104px;height:104px;border-radius:50%;border:3px double #c9a227;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#8a6d1a;font-size:9px;font-weight:800;letter-spacing:.1em;text-align:center;line-height:1.35;background:radial-gradient(circle,#fffaf0,#fdf3dc)}
-      .seal .big{font-size:20px;color:#c9a227}
-      .serial{flex:1;text-align:right;font-size:10px;color:#9ca3af;letter-spacing:.08em;line-height:1.7}
-      .serial b{color:#4b5563}
-      .tools{text-align:center;margin-bottom:14px}
-      .tools button{padding:11px 26px;border-radius:999px;border:0;background:#1f2e76;color:#fff;font-weight:800;cursor:pointer;margin:0 5px;font-size:13px}
-      .tools button.gold{background:#fdb51f;color:#111}
-      @media print{.tools{display:none}body{background:#fff;padding:0}.sheet{box-shadow:none;border-radius:0;width:100%;height:100vh}}
+      :root{
+        --navy:#132a56; --navy2:#1f2e76; --gold:#c9a227; --gold-l:#e7c766;
+        --ink:#1b2436; --muted:#6d7789; --cream:#fffdf6;
+      }
+      body{font-family:"Montserrat","Segoe UI",Arial,sans-serif;background:#e9edf4;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;color:var(--ink)}
+
+      .sheet{position:relative;width:1120px;max-width:100%;aspect-ratio:1.414/1;background:
+          radial-gradient(120% 90% at 50% -10%, #ffffff 0%, var(--cream) 45%, #fbf6e9 100%);
+        border:1px solid #ddcfae;border-radius:6px;overflow:hidden;
+        box-shadow:0 30px 80px rgba(12,26,60,.22), 0 2px 0 #fff inset}
+
+      /* faint engraved guilloche pattern */
+      .sheet::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+        background-image:
+          repeating-linear-gradient(45deg, rgba(19,42,86,.045) 0 1px, transparent 1px 9px),
+          repeating-linear-gradient(-45deg, rgba(201,162,39,.05) 0 1px, transparent 1px 9px);}
+      .sheet::after{content:"";position:absolute;inset:0;pointer-events:none;
+        background:radial-gradient(70% 55% at 50% 0%, rgba(201,162,39,.10), transparent 60%)}
+
+      /* double ornamental frame */
+      .frame{position:absolute;inset:16px;border:2.5px solid var(--navy2);border-radius:4px;pointer-events:none}
+      .frame::before{content:"";position:absolute;inset:6px;border:1.2px solid var(--gold)}
+      .corner{position:absolute;width:74px;height:74px;pointer-events:none;color:var(--gold)}
+      .corner svg{width:100%;height:100%;display:block}
+      .c-tl{top:22px;left:22px}.c-tr{top:22px;right:22px;transform:scaleX(-1)}
+      .c-bl{bottom:22px;left:22px;transform:scaleY(-1)}.c-br{bottom:22px;right:22px;transform:scale(-1,-1)}
+
+      .watermark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:"Playfair Display",serif;font-size:250px;font-weight:900;color:rgba(19,42,86,.035);letter-spacing:-8px;pointer-events:none;white-space:nowrap}
+
+      .content{position:relative;z-index:3;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:46px 78px 40px;text-align:center}
+
+      .head{display:flex;flex-direction:column;align-items:center;gap:7px}
+      .logo{height:58px;width:auto;object-fit:contain}
+      .school{font-family:"Playfair Display",serif;font-size:15px;font-weight:700;letter-spacing:.30em;text-transform:uppercase;color:var(--navy2)}
+      .school-ar{font-size:12.5px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+      .dept{margin-top:2px;font-size:9.5px;font-weight:800;letter-spacing:.30em;text-transform:uppercase;color:var(--gold)}
+
+      .orn{display:flex;align-items:center;gap:10px;margin:12px 0 2px;color:var(--gold)}
+      .orn i{display:block;width:74px;height:1px;background:linear-gradient(90deg,transparent,var(--gold))}
+      .orn i:last-child{background:linear-gradient(90deg,var(--gold),transparent)}
+      .orn span{font-size:13px;letter-spacing:2px}
+
+      h1{font-family:"Playfair Display",serif;font-size:41px;line-height:1.05;font-weight:900;letter-spacing:.055em;text-transform:uppercase;color:var(--navy2);margin-top:6px;text-shadow:0 1px 0 rgba(255,255,255,.9)}
+      .ar-title{font-family:"Cormorant Garamond",serif;font-size:23px;font-weight:700;color:var(--gold);direction:rtl;margin-top:2px;letter-spacing:.01em}
+      .sub{font-size:11px;font-weight:700;letter-spacing:.26em;text-transform:uppercase;color:var(--muted);margin-top:9px}
+
+      .recipient{width:100%;margin-top:16px}
+      .proud{font-size:11.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+      .name{font-family:"Playfair Display",serif;font-size:46px;font-weight:800;line-height:1.12;color:var(--navy);margin:6px 0 2px;letter-spacing:-.4px}
+      .name-rule{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:4px}
+      .name-rule i{display:block;height:1px;width:150px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+      .name-rule b{color:var(--gold);font-size:11px;line-height:1}
+      .meta{margin-top:8px;font-size:11.5px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;color:#41506b}
+
+      .award{margin-top:13px;max-width:760px;font-size:13px;line-height:1.85;color:#3c475c;font-weight:500}
+      .award b{color:var(--navy2);font-weight:800}
+      .award .ar{display:block;margin-top:4px;font-size:12.5px;line-height:1.95;color:#55607a}
+
+      .chips{display:flex;gap:12px;justify-content:center;margin-top:14px}
+      .chip{border-radius:999px;padding:8px 22px;font-size:11.5px;font-weight:800;letter-spacing:.10em;text-transform:uppercase}
+      .chip.rank{background:linear-gradient(135deg,#c9a227,#a8811a);color:#fff;box-shadow:0 10px 22px rgba(168,129,26,.26)}
+      .chip.score{background:#f4f7fc;color:var(--navy2);border:1px solid #d8e2f0}
+
+      .foot{width:100%;display:grid;grid-template-columns:1fr auto 1fr;align-items:end;gap:20px;margin-top:8px}
+      .sign{text-align:center}
+      .sign .line{height:1px;background:#c4cddd;margin:0 6px 6px}
+      .sign .who{font-size:11.5px;font-weight:800;color:var(--navy2);letter-spacing:.02em}
+      .sign .role{font-size:8.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#9aa4b6;margin-top:2px}
+
+      .seal{position:relative;width:112px;height:112px;border-radius:50%;
+        background:radial-gradient(circle at 32% 28%, #fdf6df 0%, #f2e2b4 55%, #dcc07c 100%);
+        border:2px solid #b98f1f;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+        box-shadow:0 8px 20px rgba(150,116,25,.28), inset 0 0 0 5px rgba(255,255,255,.55), inset 0 0 0 7px rgba(185,143,31,.55);
+        color:#8a6a12;font-weight:900;letter-spacing:.10em;text-align:center;line-height:1.3}
+      .seal .star{font-size:17px;color:#a8811a;line-height:1}
+      .seal .t{font-size:8.5px;margin-top:1px}
+      .seal .big{font-family:"Playfair Display",serif;font-size:12px;letter-spacing:.06em;color:#6f550e}
+
+      .serial{text-align:right;font-size:8.5px;line-height:1.85;color:#98a2b4;letter-spacing:.09em}
+      .serial b{color:#5b6779;font-weight:800}
+
+      .tools{text-align:center;margin-bottom:14px;font-family:"Montserrat",Arial,sans-serif}
+      .tools button{padding:12px 28px;border-radius:999px;border:0;background:var(--navy2);color:#fff;font-weight:800;cursor:pointer;margin:0 5px;font-size:12.5px;letter-spacing:.04em}
+      .tools button.gold{background:linear-gradient(135deg,#e7c766,#c9a227);color:#2b2207}
+      @media print{.tools{display:none}body{background:#fff;padding:0}.sheet{box-shadow:none;border-radius:0;border:0;width:100%;height:100vh;aspect-ratio:auto}}
     </style></head><body>
       <div>
         <div class="tools">
           <button class="gold" onclick="window.print()">🖨️ Print / Save as PDF</button>
           <button onclick="window.close()">Close</button>
         </div>
+
         <div class="sheet">
-          <span class="glow g1"></span><span class="glow g2"></span>
-          <div class="inner">
-            <img class="logo" src="/gems-logo.png" alt="GEMS"/>
-            <div class="school">GEMS World Academy Dubai</div>
-            <div class="ar-school" dir="rtl">أكاديمية جيمس العالمية — دبي</div>
-            <div class="rule"></div>
-            <div class="kicker">Arabic &amp; Islamic Champions</div>
-            <h1>Certificate of Appreciation</h1>
-            <div class="ar-title" dir="rtl">شهادة تقدير</div>
-            <div class="presented">This certificate is proudly presented to</div>
-            <div class="name">${safe(student.fullName)}</div>
-            <div class="meta">${safe(cert.grade)} • Section ${safe(cert.section)}</div>
-            <div class="award">
-              in recognition of outstanding participation in <b>${safe(cert.compName)}</b><br/>
-              <span dir="rtl">تقديراً لمشاركتها المتميزة في المسابقة المذكورة أعلاه، مع أطيب التمنيات بدوام التفوق.</span>
+          <div class="watermark">GWA</div>
+          <div class="frame"></div>
+          ${["c-tl","c-tr","c-bl","c-br"].map(cls=>`<span class="corner ${cls}"><svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 40C4 18 18 4 40 4"/><path d="M4 56C4 24 24 4 56 4" stroke-width="1.1" opacity=".65"/><path d="M12 30c8 0 18 6 22 16-10-4-18-4-22 2" fill="currentColor" stroke="none" opacity=".85"/><circle cx="41" cy="41" r="3.4" fill="currentColor" stroke="none"/></svg></span>`).join("")}
+
+          <div class="content">
+            <div class="head">
+              <img class="logo" src="/gems-logo.png" alt="GEMS World Academy"/>
+              <div class="school">GEMS World Academy Dubai</div>
+              <div class="school-ar" dir="rtl">أكاديمية جيمس العالمية — دبي</div>
+              <div class="dept">Arabic &amp; Islamic Champions • أبطال العربية والإسلامية</div>
+              <div class="orn"><i></i><span>❖</span><i></i></div>
             </div>
-            <div class="badges">
-              <span class="badge rank">${medal} Rank #${cert.rank}</span>
-              <span class="badge score">Score ${cert.score}/100</span>
+
+            <div>
+              <h1>Certificate of Appreciation</h1>
+              <div class="ar-title" dir="rtl">شهادة تقدير</div>
+              <div class="sub">International Recognition of Academic Excellence</div>
+
+              <div class="recipient">
+                <div class="proud">This certificate is proudly presented to</div>
+                <div class="name">${safe(student.fullName)}</div>
+                <div class="name-rule"><i></i><b>◆</b><i></i></div>
+                <div class="meta">${safe(cert.grade)} &nbsp;•&nbsp; Section ${safe(cert.section)}</div>
+              </div>
+
+              <div class="award">
+                in recognition of outstanding participation and commendable achievement in
+                <b>${safe(cert.compName)}</b>
+                <span class="ar" dir="rtl">تقديراً للمشاركة المتميزة والأداء المشرف في المسابقة المذكورة أعلاه، مع أطيب التمنيات بدوام التوفيق والتفوق.</span>
+              </div>
+
+              <div class="chips">
+                <span class="chip rank">${medal} Rank #${cert.rank}</span>
+                <span class="chip score">Score ${cert.score} / 100</span>
+              </div>
             </div>
+
             <div class="foot">
-              <div class="sig"><div class="line"></div><div class="who">Arabic &amp; Islamic Department</div><div class="role">Issuing authority</div></div>
-              <div class="seal"><span class="big">★</span>GWA<br/>CHAMPIONS</div>
-              <div class="sig"><div class="line"></div><div class="who">Ms Heba</div><div class="role">Teacher in charge</div></div>
-              <div class="serial">Issued <b>${safe(cert.issuedAt)}</b><br/>Serial <b>${serial}</b><br/>gwa-champions-platform.vercel.app</div>
+              <div class="sign">
+                <div class="line"></div>
+                <div class="who">Arabic &amp; Islamic Department</div>
+                <div class="role">Issuing Authority</div>
+              </div>
+              <div class="seal">
+                <span class="star">★</span>
+                <span class="big">GWA</span>
+                <span class="t">CHAMPIONS</span>
+                <span class="t">OFFICIAL SEAL</span>
+              </div>
+              <div class="sign">
+                <div class="line"></div>
+                <div class="who">Ms Heba</div>
+                <div class="role">Teacher in Charge</div>
+              </div>
+            </div>
+
+            <div class="serial">
+              Issued <b>${safe(cert.issuedAt)}</b> &nbsp;|&nbsp; Serial <b>${serial}</b><br/>
+              Verify at <b>${verifyUrl}</b>
             </div>
           </div>
         </div>
