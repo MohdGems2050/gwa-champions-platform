@@ -1218,7 +1218,7 @@ export default function App(){
   }
 
   if(view==="home")return<HomePage onStart={()=>setView("showcase")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")} onTeacher={()=>setView("teacherLogin")}/>;
-  if(view==="showcase")return<ShowcasePage comps={comps} users={users} works={works} evals={evals} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} setComps={setComps} setCerts={setCerts} setArchive={setArchive} certs={certs} adminPw={adminPw} onPromote={promoteToCertificate} onBack={()=>setView("home")} onClass={c=>{setSelClass(c);setView("classBoard")}} onParticipate={id=>{setSelCompId(id);setView("studentLogin")}} onWinners={()=>setView("winners")} onAllWorks={()=>setView("allWorks")} />;
+  if(view==="showcase")return<ShowcasePage comps={comps} users={users} works={works} evals={evals} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} setComps={setComps} setCerts={setCerts} setArchive={setArchive} certs={certs} adminPw={adminPw} onPromote={promoteToCertificate} onBack={()=>setView("home")} onClass={c=>{setSelClass(c);setView("classBoard")}} onParticipate={id=>{setSelCompId(id);setView("studentLogin")}} onWinners={()=>setView("winners")} onAllWorks={()=>setView("allWorks")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")} onTeacher={()=>setView("teacherLogin")} />;
   if(view==="allWorks")return<GlobalWorksPage users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/>;
   if(view==="winners")return<WinnersPage comps={comps} works={works} evals={evals} users={users} likes={likes} setLikes={setLikes} certs={certs} onPromote={promoteToCertificate} adminPw={adminPw} onArchive={handleArchive} onBack={()=>setView("showcase")}/>;
   if(view==="classBoard"&&selClass)return<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/>;
@@ -1236,6 +1236,30 @@ export default function App(){
 /* ════════════════════════════════════
    1. HOME
    ════════════════════════════════════ */
+
+/* ═══════ TOP PORTAL BAR (logo + Student / Teacher / Admin) ═══════ */
+function PortalBar({onStudent,onTeacher,onAdmin,onHome}:{onStudent:()=>void;onTeacher:()=>void;onAdmin:()=>void;onHome?:()=>void}){
+  const base="flex-1 rounded-full px-3.5 py-2 text-[11px] font-bold transition sm:flex-none sm:px-4 sm:text-xs";
+  return(
+    <header className="sticky top-0 z-40 border-b border-white/[0.08] bg-[#0b1028]/92 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <button onClick={onHome} disabled={!onHome} className="flex min-w-0 items-center gap-3 text-left disabled:cursor-default">
+          <Logo s/>
+          <span className="min-w-0">
+            <span className="block truncate text-[13px] font-black uppercase italic tracking-tight text-white sm:text-sm">GWA Champions</span>
+            <span className="block truncate text-[10px] font-semibold text-[#FDB51F]/80 sm:text-[11px]" dir="rtl">أبطال اللغة العربية والتربية الإسلامية والدراسات الاجتماعية</span>
+          </span>
+        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={onStudent} className={cn(base,"border border-white/15 bg-white/5 text-white hover:bg-white/10")}>🎓 دخول الطالب</button>
+          <button onClick={onTeacher} className={cn(base,"border border-[#1697E8]/40 bg-[#1697E8]/15 text-sky-100 hover:bg-[#1697E8]/25")}>👩‍🏫 المعلم</button>
+          <button onClick={onAdmin} className={cn(base,"bg-[#FDB51F] font-black text-slate-950 hover:bg-[#F7C84A]")}>الإدارة</button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
 function HomePage({onStart,onAdmin,onStudent,onTeacher}:{onStart:()=>void;onAdmin:()=>void;onStudent:()=>void;onTeacher:()=>void}){
   const pillars = [
     {ar:"اللغة العربية",en:"Arabic Language",icon:"📖",tone:"border-[#1697E8]/30 bg-[#1697E8]/15 text-sky-200"},
@@ -1250,23 +1274,7 @@ function HomePage({onStart,onAdmin,onStudent,onTeacher}:{onStart:()=>void;onAdmi
   return(
   <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#0b1028,#0f1535,#0d1230)] text-white"><Bg/>
 
-    {/* ── HEADER ── */}
-    <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0b1028]/85 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <Logo s/>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-black uppercase italic tracking-tight text-white sm:text-base">GWA Champions</p>
-            <p className="truncate text-[11px] font-semibold text-[#FDB51F]/80 sm:text-xs" dir="rtl">أبطال اللغة العربية والتربية الإسلامية والدراسات الاجتماعية</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <button onClick={onStudent} className="flex-1 rounded-full border border-white/15 bg-white/5 px-4 py-2.5 text-xs font-bold text-white backdrop-blur transition hover:bg-white/10 sm:flex-none sm:px-5 sm:text-sm">🎓 Student</button>
-          <button onClick={onTeacher} className="flex-1 rounded-full border border-[#1697E8]/40 bg-[#1697E8]/15 px-4 py-2.5 text-xs font-black text-sky-100 transition hover:bg-[#1697E8]/25 sm:flex-none sm:px-5 sm:text-sm">👩‍🏫 Teacher</button>
-          <button onClick={onAdmin} className="flex-1 rounded-full bg-[#FDB51F] px-4 py-2.5 text-xs font-black text-slate-950 shadow-lg shadow-[#FDB51F]/20 transition hover:bg-[#F7C84A] sm:flex-none sm:px-5 sm:text-sm">الإدارة • Admin</button>
-        </div>
-      </div>
-    </header>
+    <PortalBar onStudent={onStudent} onTeacher={onTeacher} onAdmin={onAdmin}/>
 
     <main className="relative z-10 mx-auto max-w-7xl px-5 pb-16 pt-8 sm:px-6 lg:pt-12">
 
@@ -1368,7 +1376,7 @@ function HomePage({onStart,onAdmin,onStudent,onTeacher}:{onStart:()=>void;onAdmi
 /* ════════════════════════════════════
    2. SHOWCASE
    ════════════════════════════════════ */
-function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,setComps,setCerts,setArchive,certs,adminPw,onPromote,onBack,onParticipate,onWinners,onAllWorks}:{comps:Comp[];users:User[];works:Work[];evals:Ev[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;setComps:React.Dispatch<React.SetStateAction<Comp[]>>;setCerts:React.Dispatch<React.SetStateAction<Cert[]>>;setArchive:React.Dispatch<React.SetStateAction<ArchiveEntry[]>>;certs:Cert[];adminPw:string;onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void;onClass:(c:ClassInfo)=>void;onParticipate:(id:string)=>void;onWinners:()=>void;onAllWorks:()=>void}){
+function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,setComps,setCerts,setArchive,certs,adminPw,onPromote,onBack,onParticipate,onWinners,onAllWorks,onAdmin,onStudent,onTeacher}:{comps:Comp[];users:User[];works:Work[];evals:Ev[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;setComps:React.Dispatch<React.SetStateAction<Comp[]>>;setCerts:React.Dispatch<React.SetStateAction<Cert[]>>;setArchive:React.Dispatch<React.SetStateAction<ArchiveEntry[]>>;certs:Cert[];adminPw:string;onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void;onClass:(c:ClassInfo)=>void;onParticipate:(id:string)=>void;onWinners:()=>void;onAllWorks:()=>void;onAdmin:()=>void;onStudent:()=>void;onTeacher:()=>void}){
   const evaluatedCount=useMemo(()=>works.filter(w=>isApproved(w)&&evals.some(e=>e.workId===w.id)).length,[works,evals]);
   /* ── ADMIN MODE (unlocked only with the admin password) ── */
   const[adminMode,setAdminMode]=useState(false);
@@ -1417,8 +1425,9 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
   if(!selComp){
     return(
       <div className="relative min-h-screen bg-[linear-gradient(180deg,#0d1230,#111a45,#0d1230)] text-white"><Bg/>
+        <PortalBar onStudent={onStudent} onTeacher={onTeacher} onAdmin={onAdmin} onHome={onBack}/>
         <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-4"><Logo s/><div><h2 className="text-lg font-black uppercase italic">Active Competitions</h2><p className="text-sm text-white/40" dir="rtl">المسابقات النشطة</p></div></div>
+          <div className="flex items-center gap-4"><div><h2 className="text-lg font-black uppercase italic">Active Competitions</h2><p className="text-sm text-white/40" dir="rtl">المسابقات النشطة</p></div></div>
           <div className="flex gap-3">
             <button onClick={()=>{ if(adminMode) setAdminMode(false); else setAskPw(true); }} className={cn("rounded-full border px-4 py-2.5 text-xs font-black transition",adminMode?"border-emerald-400/40 bg-emerald-500/20 text-emerald-200":"border-white/10 bg-white/5 text-white/70 hover:bg-white/10")}>{adminMode?"✅ Admin mode":"🔒 Admin"}</button>
             <button onClick={onWinners} className="rounded-xl px-5 py-2.5 text-sm font-black bg-gradient-to-r from-[#FDB51F] to-[#E21455] text-white shadow-lg hover:brightness-110">🏅 Winners{evaluatedCount>0?` (${evaluatedCount})`:""}</button>
@@ -1488,11 +1497,11 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
   // ── COMPETITION WORKS VIEW (competition selected) ──
   return(
     <div className="relative min-h-screen bg-[linear-gradient(180deg,#0d1230,#111a45,#0d1230)] text-white"><Bg/>
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
+      <PortalBar onStudent={onStudent} onTeacher={onTeacher} onAdmin={onAdmin} onHome={onBack}/>
+      <header className="sticky top-[68px] z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
         <button onClick={()=>{setSelCompId(null);setGradeFilter(null)}} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">← All Competitions</button>
         <div className="flex gap-3">
           <button onClick={onWinners} className="rounded-xl px-4 py-2 text-sm font-black bg-gradient-to-r from-[#FDB51F] to-[#E21455] text-white shadow-lg hover:brightness-110">🏅 Winners</button>
-          <Logo s/>
         </div>
       </header>
 
