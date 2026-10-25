@@ -360,12 +360,19 @@ async function cloudDeleteCompetition(compId:string, workIds:string[]){
   deletedComps.add(String(compId));
   if(!isSupabaseConfigured) return;
   try{
-    await supabase.from("certificates").upsert([{
+    /* INSERT only (the certificates table may have no UPDATE/DELETE policy):
+       a tombstone row is all we need — every device filters it out. */
+    const tomb = {
       id: TOMB_PREFIX + String(compId),
       work_id:"__compdel__", student_id:"", comp_id:String(compId),
       comp_name:"deleted", score:0, rank:0, grade:"", section:"",
       issued_at: new Date().toISOString().slice(0,10)
-    }],{onConflict:"id"});
+    };
+    const ins = await supabase.from("certificates").insert(tomb);
+    if(ins.error){
+      const up = await supabase.from("certificates").upsert([tomb],{onConflict:"id"});
+      if(up.error) console.error("tombstone not saved:", up.error.message);
+    }
     await supabase.from("certificates").delete().eq("id","__comp__"+String(compId));
     if(workIds.length>0){
       await supabase.from("evaluations").delete().in("work_id",workIds);
