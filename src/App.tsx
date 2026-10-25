@@ -316,7 +316,10 @@ function classesText(u:any){ const list=decodeClasses(u); return list.length?lis
 
 /* ═══════ ADMIN RECOVERY ═══════ */
 const ADMIN_RECOVERY_CODE = "MohdRoshdi@2050";
-const ADMIN_EMAIL = "Mohdarabichod3@gmail.com";
+const ADMIN_EMAIL = "m.roshdi_gwa@gemsedu.com";        /* primary • البريد الأساسي */
+const ADMIN_EMAIL_ALT = "mohdarabichod3@gmail.com";   /* alternate • بريد بديل مقبول */
+const ADMIN_EMAILS = [ADMIN_EMAIL, ADMIN_EMAIL_ALT];
+const isAdminEmail = (value:string)=> ADMIN_EMAILS.includes(String(value||"").trim().toLowerCase());
 
 /* ═══════ SUPABASE HELPERS ═══════ */
 function useVideoUrl(path: string): string {
@@ -1217,11 +1220,19 @@ export default function App(){
     setComps(p=>p.map(c=>c.id===comp.id?{...c,archived:true}:c));
   }
 
-  if(view==="home")return<HomePage onStart={()=>setView("showcase")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")} onTeacher={()=>setView("teacherLogin")}/>;
-  if(view==="showcase")return<ShowcasePage comps={comps} users={users} works={works} evals={evals} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} setComps={setComps} setCerts={setCerts} setArchive={setArchive} certs={certs} adminPw={adminPw} onPromote={promoteToCertificate} onBack={()=>setView("home")} onClass={c=>{setSelClass(c);setView("classBoard")}} onParticipate={id=>{setSelCompId(id);setView("studentLogin")}} onWinners={()=>setView("winners")} onAllWorks={()=>setView("allWorks")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")} onTeacher={()=>setView("teacherLogin")} />;
-  if(view==="allWorks")return<GlobalWorksPage users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")} onTeacher={()=>setView("teacherLogin")}/>;
-  if(view==="winners")return<WinnersPage comps={comps} works={works} evals={evals} users={users} likes={likes} setLikes={setLikes} certs={certs} onPromote={promoteToCertificate} adminPw={adminPw} onArchive={handleArchive} onBack={()=>setView("showcase")}/>;
-  if(view==="classBoard"&&selClass)return<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")} onTeacher={()=>setView("teacherLogin")}/>;
+  /* global bar: rendered above every public view so it can never disappear */
+  const portalsBar=(home?:()=>void)=>(
+    <TopBar
+      onStudent={()=>setView("studentLogin")}
+      onTeacher={()=>setView("teacherLogin")}
+      onAdmin={()=>setView("adminLogin")}
+      onHome={home}/>
+  );
+  if(view==="home")return<>{portalsBar()}<HomePage onStart={()=>setView("showcase")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")} onTeacher={()=>setView("teacherLogin")}/></>;
+  if(view==="showcase")return<>{portalsBar(()=>setView("home"))}<ShowcasePage comps={comps} users={users} works={works} evals={evals} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} setComps={setComps} setCerts={setCerts} setArchive={setArchive} certs={certs} adminPw={adminPw} onPromote={promoteToCertificate} onBack={()=>setView("home")} onClass={c=>{setSelClass(c);setView("classBoard")}} onParticipate={id=>{setSelCompId(id);setView("studentLogin")}} onWinners={()=>setView("winners")} onAllWorks={()=>setView("allWorks")} /></>;
+  if(view==="allWorks")return<>{portalsBar(()=>setView("home"))}<GlobalWorksPage users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/></>;
+  if(view==="winners")return<>{portalsBar(()=>setView("home"))}<WinnersPage comps={comps} works={works} evals={evals} users={users} likes={likes} setLikes={setLikes} certs={certs} onPromote={promoteToCertificate} adminPw={adminPw} onArchive={handleArchive} onBack={()=>setView("showcase")}/></>;
+  if(view==="classBoard"&&selClass)return<>{portalsBar(()=>setView("home"))}<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/></>;
   if(view==="adminLogin")return<AdminLoginPage adminPw={adminPw} onBack={()=>setView("home")} onOk={()=>setView("admin")}/>;
   if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw} onBack={()=>setView("home")} />;
   if(view==="studentLogin")return<StudentLoginPage users={users} onBack={()=>setView("home")} onOk={s=>{ if(s.role==="teacher"){setCurrentTeacher(s);setCurrentStudent(s);setView("teacherPortal");} else {setCurrentStudent(s);setView("student");} }}/>;
@@ -1237,26 +1248,30 @@ export default function App(){
    1. HOME
    ════════════════════════════════════ */
 
-/* ═══════ TOP PORTAL BAR (logo + Student / Teacher / Admin) ═══════ */
-function PortalBar({onStudent,onTeacher,onAdmin,onHome}:{onStudent:()=>void;onTeacher:()=>void;onAdmin:()=>void;onHome?:()=>void}){
-  const base="flex-1 rounded-full px-3.5 py-2 text-[11px] font-bold transition sm:flex-none sm:px-4 sm:text-xs";
+/* ═══════════════════════════════════════════════════════════
+   GLOBAL TOP BAR — logo + Student / Teacher / Admin portals
+   Rendered once at the root so it can never disappear.
+   ═══════════════════════════════════════════════════════════ */
+function TopBar({onStudent,onTeacher,onAdmin,onHome}:{onStudent:()=>void;onTeacher:()=>void;onAdmin:()=>void;onHome?:()=>void}){
   return(
-    <header className="sticky top-0 z-40 border-b border-white/[0.08] bg-[#0b1028]/92 backdrop-blur-xl">
+    <div style={{background:"#0b1028", borderBottom:"1px solid rgba(255,255,255,0.12)"}} className="relative z-50 w-full">
       <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <button onClick={onHome} disabled={!onHome} className="flex min-w-0 items-center gap-3 text-left disabled:cursor-default">
-          <Logo s/>
+        <button type="button" onClick={onHome} disabled={!onHome} className="flex min-w-0 items-center gap-3 text-left disabled:cursor-default">
+          <span className="rounded-2xl bg-white p-1.5 shadow-lg shadow-black/30 shrink-0">
+            <img src="/gems-logo.png" alt="GEMS" className="h-10 w-auto object-contain"/>
+          </span>
           <span className="min-w-0">
             <span className="block truncate text-[13px] font-black uppercase italic tracking-tight text-white sm:text-sm">GWA Champions</span>
-            <span className="block truncate text-[10px] font-semibold text-[#FDB51F]/80 sm:text-[11px]" dir="rtl">أبطال اللغة العربية والتربية الإسلامية والدراسات الاجتماعية</span>
+            <span className="block truncate text-[10px] font-semibold text-[#FDB51F] sm:text-[11px]" dir="rtl">أبطال اللغة العربية والتربية الإسلامية والدراسات الاجتماعية</span>
           </span>
         </button>
         <div className="flex items-center gap-2">
-          <button onClick={onStudent} className={cn(base,"border border-white/15 bg-white/5 text-white hover:bg-white/10")}>🎓 دخول الطالب</button>
-          <button onClick={onTeacher} className={cn(base,"border border-[#1697E8]/40 bg-[#1697E8]/15 text-sky-100 hover:bg-[#1697E8]/25")}>👩‍🏫 المعلم</button>
-          <button onClick={onAdmin} className={cn(base,"bg-[#FDB51F] font-black text-slate-950 hover:bg-[#F7C84A]")}>الإدارة</button>
+          <button type="button" onClick={onStudent} className="flex-1 rounded-full border border-white/25 bg-white/10 px-3.5 py-2 text-[11px] font-bold text-white transition hover:bg-white/20 sm:flex-none sm:px-4 sm:text-xs">🎓 دخول الطالب</button>
+          <button type="button" onClick={onTeacher} className="flex-1 rounded-full border border-sky-400/50 bg-sky-500/25 px-3.5 py-2 text-[11px] font-black text-white transition hover:bg-sky-500/35 sm:flex-none sm:px-4 sm:text-xs">👩‍🏫 المعلم</button>
+          <button type="button" onClick={onAdmin} className="flex-1 rounded-full bg-[#FDB51F] px-3.5 py-2 text-[11px] font-black text-slate-950 transition hover:bg-[#F7C84A] sm:flex-none sm:px-4 sm:text-xs">🛡️ الإدارة</button>
         </div>
       </div>
-    </header>
+    </div>
   );
 }
 
@@ -1274,7 +1289,23 @@ function HomePage({onStart,onAdmin,onStudent,onTeacher}:{onStart:()=>void;onAdmi
   return(
   <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#0b1028,#0f1535,#0d1230)] text-white"><Bg/>
 
-    <PortalBar onStudent={onStudent} onTeacher={onTeacher} onAdmin={onAdmin}/>
+    {/* ── HEADER ── */}
+    <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0b1028]/85 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <Logo s/>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-black uppercase italic tracking-tight text-white sm:text-base">GWA Champions</p>
+            <p className="truncate text-[11px] font-semibold text-[#FDB51F]/80 sm:text-xs" dir="rtl">أبطال اللغة العربية والتربية الإسلامية والدراسات الاجتماعية</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button onClick={onStudent} className="flex-1 rounded-full border border-white/15 bg-white/5 px-4 py-2.5 text-xs font-bold text-white backdrop-blur transition hover:bg-white/10 sm:flex-none sm:px-5 sm:text-sm">🎓 Student</button>
+          <button onClick={onTeacher} className="flex-1 rounded-full border border-[#1697E8]/40 bg-[#1697E8]/15 px-4 py-2.5 text-xs font-black text-sky-100 transition hover:bg-[#1697E8]/25 sm:flex-none sm:px-5 sm:text-sm">👩‍🏫 Teacher</button>
+          <button onClick={onAdmin} className="flex-1 rounded-full bg-[#FDB51F] px-4 py-2.5 text-xs font-black text-slate-950 shadow-lg shadow-[#FDB51F]/20 transition hover:bg-[#F7C84A] sm:flex-none sm:px-5 sm:text-sm">الإدارة • Admin</button>
+        </div>
+      </div>
+    </header>
 
     <main className="relative z-10 mx-auto max-w-7xl px-5 pb-16 pt-8 sm:px-6 lg:pt-12">
 
@@ -1376,7 +1407,7 @@ function HomePage({onStart,onAdmin,onStudent,onTeacher}:{onStart:()=>void;onAdmi
 /* ════════════════════════════════════
    2. SHOWCASE
    ════════════════════════════════════ */
-function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,setComps,setCerts,setArchive,certs,adminPw,onPromote,onBack,onParticipate,onWinners,onAllWorks,onAdmin,onStudent,onTeacher}:{comps:Comp[];users:User[];works:Work[];evals:Ev[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;setComps:React.Dispatch<React.SetStateAction<Comp[]>>;setCerts:React.Dispatch<React.SetStateAction<Cert[]>>;setArchive:React.Dispatch<React.SetStateAction<ArchiveEntry[]>>;certs:Cert[];adminPw:string;onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void;onClass:(c:ClassInfo)=>void;onParticipate:(id:string)=>void;onWinners:()=>void;onAllWorks:()=>void;onAdmin:()=>void;onStudent:()=>void;onTeacher:()=>void}){
+function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,setComps,setCerts,setArchive,certs,adminPw,onPromote,onBack,onParticipate,onWinners,onAllWorks}:{comps:Comp[];users:User[];works:Work[];evals:Ev[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;setComps:React.Dispatch<React.SetStateAction<Comp[]>>;setCerts:React.Dispatch<React.SetStateAction<Cert[]>>;setArchive:React.Dispatch<React.SetStateAction<ArchiveEntry[]>>;certs:Cert[];adminPw:string;onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void;onClass:(c:ClassInfo)=>void;onParticipate:(id:string)=>void;onWinners:()=>void;onAllWorks:()=>void}){
   const evaluatedCount=useMemo(()=>works.filter(w=>isApproved(w)&&evals.some(e=>e.workId===w.id)).length,[works,evals]);
   /* ── ADMIN MODE (unlocked only with the admin password) ── */
   const[adminMode,setAdminMode]=useState(false);
@@ -1425,9 +1456,8 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
   if(!selComp){
     return(
       <div className="relative min-h-screen bg-[linear-gradient(180deg,#0d1230,#111a45,#0d1230)] text-white"><Bg/>
-        <PortalBar onStudent={onStudent} onTeacher={onTeacher} onAdmin={onAdmin} onHome={onBack}/>
         <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-4"><div><h2 className="text-lg font-black uppercase italic">Active Competitions</h2><p className="text-sm text-white/40" dir="rtl">المسابقات النشطة</p></div></div>
+          <div className="flex items-center gap-4"><Logo s/><div><h2 className="text-lg font-black uppercase italic">Active Competitions</h2><p className="text-sm text-white/40" dir="rtl">المسابقات النشطة</p></div></div>
           <div className="flex gap-3">
             <button onClick={()=>{ if(adminMode) setAdminMode(false); else setAskPw(true); }} className={cn("rounded-full border px-4 py-2.5 text-xs font-black transition",adminMode?"border-emerald-400/40 bg-emerald-500/20 text-emerald-200":"border-white/10 bg-white/5 text-white/70 hover:bg-white/10")}>{adminMode?"✅ Admin mode":"🔒 Admin"}</button>
             <button onClick={onWinners} className="rounded-xl px-5 py-2.5 text-sm font-black bg-gradient-to-r from-[#FDB51F] to-[#E21455] text-white shadow-lg hover:brightness-110">🏅 Winners{evaluatedCount>0?` (${evaluatedCount})`:""}</button>
@@ -1497,11 +1527,11 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
   // ── COMPETITION WORKS VIEW (competition selected) ──
   return(
     <div className="relative min-h-screen bg-[linear-gradient(180deg,#0d1230,#111a45,#0d1230)] text-white"><Bg/>
-      <PortalBar onStudent={onStudent} onTeacher={onTeacher} onAdmin={onAdmin} onHome={onBack}/>
-      <header className="sticky top-[68px] z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
         <button onClick={()=>{setSelCompId(null);setGradeFilter(null)}} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">← All Competitions</button>
         <div className="flex gap-3">
           <button onClick={onWinners} className="rounded-xl px-4 py-2 text-sm font-black bg-gradient-to-r from-[#FDB51F] to-[#E21455] text-white shadow-lg hover:brightness-110">🏅 Winners</button>
+          <Logo s/>
         </div>
       </header>
 
@@ -1547,14 +1577,15 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
 /* ════════════════════════════════════
    3. CLASS BOARD
    ════════════════════════════════════ */
-function ClassBoardPage({cls,users,works,evals,comps,likes,setLikes,setEvals,setWorks,certs,onPromote,onBack,onAdmin,onStudent,onTeacher}:{cls:ClassInfo;users:User[];works:Work[];evals:Ev[];comps:Comp[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void;onAdmin:()=>void;onStudent:()=>void;onTeacher:()=>void}){
+function ClassBoardPage({cls,users,works,evals,comps,likes,setLikes,setEvals,setWorks,certs,onPromote,onBack}:{cls:ClassInfo;users:User[];works:Work[];evals:Ev[];comps:Comp[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void}){
   const classWorks=useMemo(()=>works.filter(w=>{const s=users.find(u=>u.id===w.studentId);return s&&s.grade===cls.grade&&s.section===cls.section;}),[cls,users,works]);
   return(
     <div className="relative min-h-screen bg-[#050916] text-white"><Bg/>
-      <PortalBar onStudent={onStudent} onTeacher={onTeacher} onAdmin={onAdmin} onHome={onBack}/>
-      <header className="sticky top-[68px] z-20 border-b border-white/10 bg-[#050916]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#050916]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
         <button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white">← Back</button>
-        <span className="text-[11px] font-bold text-white/40">Class gallery • لوحة الصف</span>
+        <div className="flex items-center gap-3">
+          <Logo s/>
+        </div>
       </header>
       <section className="relative z-10 border-b border-white/10 bg-[radial-gradient(circle_at_top,rgba(22,151,232,0.24),transparent_35%),linear-gradient(160deg,#111a45,#050916_80%)] px-6 py-16 text-center">
         <div className="text-xs font-black uppercase tracking-[0.34em] text-white/40">Gallery of Excellence • معرض التميز</div>
@@ -1575,12 +1606,11 @@ function ClassBoardPage({cls,users,works,evals,comps,likes,setLikes,setEvals,set
 /* ════════════════════════════════════
    4. GLOBAL WORKS
    ════════════════════════════════════ */
-function GlobalWorksPage({users,works,evals,comps,likes,setLikes,setEvals,setWorks,certs,onPromote,onBack,onAdmin,onStudent,onTeacher}:{users:User[];works:Work[];evals:Ev[];comps:Comp[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void;onAdmin:()=>void;onStudent:()=>void;onTeacher:()=>void}){
+function GlobalWorksPage({users,works,evals,comps,likes,setLikes,setEvals,setWorks,certs,onPromote,onBack}:{users:User[];works:Work[];evals:Ev[];comps:Comp[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void}){
   const sorted=useMemo(()=>[...works].sort((a,b)=>b.at.localeCompare(a.at)),[works]);
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
-      <PortalBar onStudent={onStudent} onTeacher={onTeacher} onAdmin={onAdmin} onHome={onBack}/>
-      <header className="sticky top-[68px] z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
         <button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white">← Back</button>
         <div className="flex items-center gap-3">
           <Logo s/>
@@ -1801,10 +1831,10 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
     if(!value){setFpErr("أدخل البريد الإلكتروني • Enter your email");return}
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)){setFpErr("صيغة البريد الإلكتروني غير صحيحة • Invalid email format");return}
     setBusy(true);
-    const correct = value === ADMIN_EMAIL.toLowerCase();
+    const correct = isAdminEmail(value);
     if(correct){
       setFpErr(""); setFpOk(true);
-      void sendRecovery(ADMIN_EMAIL);
+      void sendRecovery(value);
       setBusy(false);
       return;
     }
@@ -1865,8 +1895,11 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
 
                   {revealed&&(
                     <div className="rounded-xl border border-[#FDB51F]/30 bg-[#FDB51F]/10 px-4 py-3 text-sm font-bold leading-7 text-[#FFE29A]">
-                      ✅ البريد الصحيح هو:<br/><span dir="ltr" className="font-black tracking-wide text-white">{ADMIN_EMAIL}</span>
-                      <button type="button" onClick={()=>{setEmail(ADMIN_EMAIL);setFpErr("");}} className="mt-2 block w-full rounded-xl bg-[#FDB51F] py-2.5 text-xs font-black text-slate-950 hover:bg-[#F7C84A]">استخدام هذا البريد وإرسال البيانات</button>
+                      ✅ البريد المسجّل هو:<br/>
+                      <span dir="ltr" className="block font-black tracking-wide text-white">{ADMIN_EMAIL}</span>
+                      <span dir="ltr" className="mt-1 block text-[11px] font-bold text-[#FFE29A]/80">أو • or: {ADMIN_EMAIL_ALT}</span>
+                      <button type="button" onClick={()=>{setEmail(ADMIN_EMAIL);setFpErr("");}} className="mt-2 block w-full rounded-xl bg-[#FDB51F] py-2.5 text-xs font-black text-slate-950 hover:bg-[#F7C84A]">استخدام {ADMIN_EMAIL}</button>
+                      <button type="button" onClick={()=>{setEmail(ADMIN_EMAIL_ALT);setFpErr("");}} className="mt-1.5 block w-full rounded-xl border border-[#FDB51F]/40 bg-white/5 py-2.5 text-xs font-black text-[#FFE29A] hover:bg-white/10">استخدام {ADMIN_EMAIL_ALT}</button>
                     </div>
                   )}
 
@@ -2308,14 +2341,14 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
                   </div>
                 </div>
                 <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <p className="text-[11px] font-bold text-white/50">Admin email • بريد الإدارة</p>
-                  <p className="mb-3 text-sm font-black text-white break-all">{ADMIN_EMAIL}</p>
+                  <p className="text-[11px] font-bold text-white/50">Admin emails • بريد الإدارة</p>
+                  <p className="text-sm font-black text-white break-all" dir="ltr">{ADMIN_EMAIL}</p>
+                  <p className="mb-3 text-sm font-black text-white/70 break-all" dir="ltr">{ADMIN_EMAIL_ALT}</p>
                   <button onClick={()=>{
                     const body=[`GWA Champions — Admin access details`,`بيانات دخول الإدارة`,``,`Recovery code: ${ADMIN_RECOVERY_CODE}`,`Current password: ${adminPw}`,``,`Portal: https://gwa-champions-platform.vercel.app`].join("\n");
-                    window.location.href=`mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent("GWA Champions — Admin password / recovery code")}&body=${encodeURIComponent(body)}`;
+                    window.location.href=`mailto:${ADMIN_EMAIL},${ADMIN_EMAIL_ALT}?subject=${encodeURIComponent("GWA Champions — Admin password / recovery code")}&body=${encodeURIComponent(body)}`;
                   }} className="w-full rounded-2xl bg-[#1697E8] py-3.5 text-sm font-black text-white hover:bg-sky-400">📧 Send password &amp; code to {ADMIN_EMAIL}</button>
                   <p className="mt-2 text-[10px] leading-5 text-white/30">يفتح برنامج البريد لديك برسالة جاهزة إلى بريد الإدارة تحتوي كلمة المرور الحالية ورمز الاستعادة — أرسلها لتصل إليك عند نسيانها.</p>
-                  <p className="mt-2 rounded-xl border border-[#1697E8]/20 bg-[#1697E8]/10 px-3 py-2 text-[10px] font-bold leading-5 text-sky-100/80">لإرسال تلقائي بدون فتح بريدك: سجّل الدخول إلى Resend بنفس هذا البريد وأضف مفتاح RESEND_API_KEY في Vercel.</p>
                 </div>
               </div>
               <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
