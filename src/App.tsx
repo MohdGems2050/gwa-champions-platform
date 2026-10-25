@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import QRCode from "qrcode";
 import { supabase, isSupabaseConfigured } from "./lib/supabase";
@@ -400,10 +401,11 @@ function useVideoUrl(path: string): string {
   return url;
 }
 
-function SecureVideo(props: React.VideoHTMLAttributes<HTMLVideoElement> & { path: string }) {
-  const { path, ...videoProps } = props;
+function SecureVideo(props: React.VideoHTMLAttributes<HTMLVideoElement> & { path: string; theater?: boolean }) {
+  const { path, theater = true, ...videoProps } = props;
   const url = useVideoUrl(path);
-  
+  const[openTheater,setOpenTheater]=useState(false);
+
   if (!url) {
     return (
       <div className={cn("flex items-center justify-center bg-slate-900 animate-pulse", props.className)}>
@@ -412,9 +414,185 @@ function SecureVideo(props: React.VideoHTMLAttributes<HTMLVideoElement> & { path
     );
   }
 
-  return <video {...videoProps} src={url} />;
+  /* keep the caller's height utility on the wrapper so grid/full-height cards behave */
+  const fillsHeight = String(props.className||"").split(/\s+/).some(c=>c==="h-full"||c.startsWith("h-[")||c.startsWith("min-h-"));
+  const wrapperClass = cn("relative w-full", fillsHeight && "h-full");
+
+  return (
+    <>
+      <div className={wrapperClass}>
+        <video
+          {...videoProps}
+          src={url}
+          /* the native fullscreen control hides the header by design → disabled */
+          controlsList="nodownload nofullscreen"
+          disablePictureInPicture
+          onDoubleClick={()=>setOpenTheater(true)}
+        />
+        {theater && (
+          <button
+            type="button"
+            onClick={()=>setOpenTheater(true)}
+            title="Theater mode — keeps the header visible / وضع المسرح"
+            aria-label="Open theater mode"
+            className="absolute end-2 top-1/2 z-10 -translate-y-1/2 rounded-lg border border-white/20 bg-black/65 px-2.5 py-1.5 text-[11px] font-black text-white/90 backdrop-blur-sm transition hover:bg-black/85"
+          >⛶ Theater</button>
+        )}
+      </div>
+      {openTheater && (
+        <VideoTheater
+          src={url}
+          poster={props.poster as string | undefined}
+          title={props.title as string | undefined}
+          onClose={()=>setOpenTheater(false)}
+        />
+      )}
+    </>
+  );
 }
 
+
+
+/* ═══════════════════════════════════════════════════════════
+   FULL SCREEN
+   Root cause of the disappearing header: the only fullscreen in
+   the product was the <video> control's native fullscreen, which
+   promotes the video element itself to the fullscreen element.
+   Per the Fullscreen API only that element and its descendants are
+   rendered, so the header (outside it) can never be shown — no
+   z-index can fix that.
+   Fix: never fullscreen a page/video container.
+     • app fullscreen requests on #gwa-app-shell (header inside it)
+     • videos get an in-page "theater" layer placed *below* the
+       header, so the logo, navigation and controls stay usable.
+   ═══════════════════════════════════════════════════════════ */
+const SHELL_ID = "gwa-app-shell";
+const HEADER_VAR = "--gwa-header-h";
+
+type FsDocument = Document & {
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => Promise<void> | void;
+  msFullscreenElement?: Element | null;
+  msExitFullscreen?: () => Promise<void> | void;
+};
+type FsElement = HTMLElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+  msRequestFullscreen?: () => Promise<void> | void;
+};
+
+function currentFullscreenElement(): Element | null {
+  const d = document as FsDocument;
+  return d.fullscreenElement || d.webkitFullscreenElement || d.msFullscreenElement || null;
+}
+
+/** Fullscreen bound to the whole application shell, never to a page container. */
+function useAppFullscreen(){
+  const[isFullscreen,setIsFullscreen]=useState(false);
+  const[supported,setSupported]=useState(false);
+
+  useEffect(()=>{
+    setSupported(Boolean(document.fullscreenEnabled || (document as FsDocument).webkitFullscreenElement !== undefined));
+    const sync=()=>setIsFullscreen(Boolean(currentFullscreenElement()));
+    sync();
+    document.addEventListener("fullscreenchange", sync);
+    document.addEventListener("webkitfullscreenchange", sync as EventListener);
+    return ()=>{
+      document.removeEventListener("fullscreenchange", sync);
+      document.removeEventListener("webkitfullscreenchange", sync as EventListener);
+    };
+  },[]);
+
+  async function toggle(){
+    const d=document as FsDocument;
+    try{
+      if(currentFullscreenElement()){
+        if(d.exitFullscreen) await d.exitFullscreen();
+        else if(d.webkitExitFullscreen) await d.webkitExitFullscreen();
+        else if(d.msExitFullscreen) await d.msExitFullscreen();
+        return;
+      }
+      /* the shell wraps every page *including* the header, so the header stays visible */
+      const shell=(document.getElementById(SHELL_ID) as FsElement | null) || (document.documentElement as FsElement);
+      if(shell.requestFullscreen) await shell.requestFullscreen({ navigationUI:"hide" });
+      else if(shell.webkitRequestFullscreen) await shell.webkitRequestFullscreen();
+      else if(shell.msRequestFullscreen) await shell.msRequestFullscreen();
+    }catch{ /* blocked by the browser (e.g. iframe without allow="fullscreen") — ignore */ }
+  }
+
+  return { isFullscreen, supported, toggle };
+}
+
+/** Measures the current fixed page header so overlays start beneath it. */
+function useHeaderHeight(active:boolean){
+  const[height,setHeight]=useState(84);
+  useEffect(()=>{
+    if(!active) return;
+    const measure=()=>{
+      const header=document.querySelector("header");
+      const h=header ? Math.round(header.getBoundingClientRect().height) : 84;
+      if(h>0){ setHeight(h); document.documentElement.style.setProperty(HEADER_VAR,`${h}px`); }
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", measure);
+    const t=window.setTimeout(measure,120);
+    return ()=>{
+      window.clearTimeout(t);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+    };
+  },[active]);
+  return height;
+}
+
+/* In-page theater: large playback area that keeps the header usable. */
+function VideoTheater({src,poster,title,onClose}:{src:string;poster?:string;title?:string;onClose:()=>void}){
+  const headerHeight=useHeaderHeight(true);
+
+  useEffect(()=>{
+    const onKey=(e:KeyboardEvent)=>{ if(e.key==="Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    const previousOverflow=document.body.style.overflow;
+    document.body.style.overflow="hidden";
+    return ()=>{
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow=previousOverflow;
+    };
+  },[onClose]);
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title?`Theater: ${title}`:"Theater mode"}
+      className="fixed inset-0 z-[55] flex flex-col bg-black/95 backdrop-blur-sm"
+      style={{paddingTop:headerHeight}}
+      onClick={onClose}
+    >
+      <div className="flex items-center justify-between gap-3 px-4 py-2 sm:px-6">
+        <p className="truncate text-sm font-black text-white/80">{title||"Theater mode"}</p>
+        <button
+          type="button"
+          onClick={(e)=>{ e.stopPropagation(); onClose(); }}
+          className="rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-black text-white hover:bg-white/20"
+        >✕ Close · Exit theater</button>
+      </div>
+      <div className="flex flex-1 items-center justify-center px-3 pb-5 sm:px-6" onClick={e=>e.stopPropagation()}>
+        <video
+          src={src}
+          poster={poster}
+          controls
+          autoPlay
+          playsInline
+          controlsList="nodownload"
+          className="max-h-full w-full max-w-6xl rounded-2xl bg-black object-contain shadow-2xl"
+        />
+      </div>
+      <p className="pb-3 text-center text-[11px] font-bold text-white/35">Esc أو ✕ للخروج — الشريط العلوي يبقى متاحاً</p>
+    </div>,
+    document.body
+  );
+}
 
 /* ═══════ REVIEW / APPROVAL RULES ═══════ */
 const MAX_VIDEO_MB = 50;
@@ -1153,7 +1331,7 @@ function TeacherPortalPage({teacher,users,works,comps,setWorks,onUpload,onBack}:
 /* ════════════════════════════════════
    MAIN APP
    ════════════════════════════════════ */
-export default function App(){
+function AppRoutes(){
   const[view,setView]=useState<View>(()=>{
     /* QR codes on the ID cards deep-link straight into the matching portal */
     try{
@@ -1417,6 +1595,35 @@ export default function App(){
   if(view==="student"&&currentStudent)return<StudentPage student={currentStudent} comps={comps} works={works} evals={evals} certs={certs} selCompId={selCompId} setWorks={setWorks} onBack={()=>{setCurrentStudent(null);setView("home")}}/>;
   if(view==="student"&&!currentStudent)return<StudentLoginPage users={users} onBack={()=>setView("home")} onOk={s=>{ if(s.role==="teacher"){setCurrentTeacher(s);setCurrentStudent(s);setView("teacherPortal");} else {setCurrentStudent(s);setView("student");} }}/>;
   return null;
+}
+
+/* ════════════════════════════════════
+   APP SHELL — the element that goes fullscreen
+   ════════════════════════════════════ */
+function AppShell({children}:{children:React.ReactNode}){
+  const { isFullscreen, supported, toggle } = useAppFullscreen();
+  return(
+    <div id={SHELL_ID} className="min-h-screen bg-[#0b1028]">
+      {children}
+      {supported && (
+        <button
+          type="button"
+          onClick={toggle}
+          title={isFullscreen?"Exit full screen (Esc) • خروج":"Full screen — keeps the header • ملء الشاشة"}
+          aria-label={isFullscreen?"Exit full screen":"Enter full screen"}
+          aria-pressed={isFullscreen}
+          className="fixed bottom-4 left-4 z-[80] flex items-center gap-2 rounded-full border border-white/20 bg-[#0f1535]/90 px-3.5 py-2.5 text-[11px] font-black text-white shadow-lg shadow-black/40 backdrop-blur transition hover:bg-[#16204a] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FDB51F] sm:bottom-5 sm:left-5 sm:text-xs"
+        >
+          <span aria-hidden="true" className="text-sm leading-none">{isFullscreen?"⤡":"⛶"}</span>
+          <span className="hidden sm:inline">{isFullscreen?"Exit full screen":"Full screen"}</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+export default function App(){
+  return <AppShell><AppRoutes/></AppShell>;
 }
 
 /* ════════════════════════════════════
