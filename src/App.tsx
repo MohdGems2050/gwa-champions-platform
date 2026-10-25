@@ -235,7 +235,7 @@ function sv(k:string,v:any){
         }
       }
       if(k===SK.w && Array.isArray(v) && v.length > 0){
-        const rows = v.map((w:any)=>({
+        const rows = v.filter((w:any)=>w && !deletedWorks.has(String(w.id))).map((w:any)=>({
           id:String(w.id), competition_id:String(w.competitionId||""), student_id:String(w.studentId||""),
           title:w.title||"Untitled", desc:w.desc||"", video_url:w.videoUrl||"", thumb:w.thumb||"",
           at: validDate(w.at),
@@ -354,6 +354,7 @@ const isAdminEmail = (value:string)=> ADMIN_EMAILS.includes(String(value||"").tr
    (id "__compdel__<compId>") in the cloud and is remembered in this module-level set,
    so no device can re-upload it or render a placeholder for it. */
 const deletedComps = new Set<string>();
+const deletedWorks = new Set<string>();
 const TOMB_PREFIX = "__compdel__";
 
 async function cloudDeleteCompetition(compId:string, workIds:string[]){
@@ -417,6 +418,9 @@ function SecureVideo(props: React.VideoHTMLAttributes<HTMLVideoElement> & { path
 
 /* ═══════ REVIEW / APPROVAL RULES ═══════ */
 const MAX_VIDEO_MB = 50;
+/* Universal removal code — deletes ANY submission from the showcase, including
+   videos whose competition was already deleted. */
+const REMOVE_CODE = "Remove2050";
 const MAX_VIDEO_SECONDS = 180; // 3 minutes — matches the current Supabase storage tier
 /* A work is only public when the cloud row says "approved" AND a teacher is recorded. */
 const isApproved = (w:Work)=> w.status === "approved" && Boolean(w.approvedBy);
@@ -599,33 +603,50 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
   if(!stu)return null;
 
   async function verifyCode(){
-    if(!comp){setCodeErr("No competition found");return}
-    if(codeInput.trim().toUpperCase()===comp.evalCode?.toUpperCase()){
-      if(codeMode==="eval"){
-        setShowCodePrompt(false); setCodeInput(""); setCodeErr("");
-        setEditEval(true);
-      }else{
-        // Delete flow
-        try {
-          if (w.videoUrl.startsWith("/api/videos/")) {
-             await deleteVideo(w.videoUrl);
-             await fetch(`/api/works/${encodeURIComponent(w.id)}`, { method: "DELETE" });
-          } else if (!w.videoUrl.startsWith("http")) {
-             const { error } = await supabase.functions.invoke("delete-video", {
-               body: { path: w.videoUrl }
-             });
-             if (error) throw error;
-          }
-          setWorks(prev=>prev.filter(item=>item.id!==w.id));
-          setEvals(prev=>prev.filter(item=>item.workId!==w.id));
-          setLikes(prev=>prev.filter(item=>item.workId!==w.id));
-          setShowCodePrompt(false); setCodeInput(""); setCodeErr("");
-        } catch (err: any) {
-          setCodeErr("❌ Delete Error: " + err.message);
-        }
+    const entered = codeInput.trim().toUpperCase();
+    const isRemoveCode = entered === REMOVE_CODE.toUpperCase();
+    const isEvalCode = Boolean(comp?.evalCode) && entered === String(comp!.evalCode).toUpperCase();
+
+    if(codeMode==="delete" ? (!isRemoveCode && !isEvalCode) : !isEvalCode){
+      setCodeErr(codeMode==="delete"
+        ? "كود الحذف غير صحيح • Invalid removal code (the removal code works for any video)"
+        : "Invalid evaluation code • كود التصحيح غير صحيح");
+      return;
+    }
+
+    if(codeMode==="eval"){
+      setShowCodePrompt(false); setCodeInput(""); setCodeErr("");
+      setEditEval(true);
+      return;
+    }
+
+    /* ── DELETE FLOW ── */
+    try {
+      const url = String(w.videoUrl||"");
+      if (url.startsWith("/api/videos/")) {
+        await deleteVideo(url);
+        await fetch(`/api/works/${encodeURIComponent(w.id)}`, { method: "DELETE" });
+      } else if (url && !url.startsWith("http")) {
+        const { error } = await supabase.functions.invoke("delete-video", { body: { path: url } });
+        if (error) throw error;
+      } else if (url.includes("/storage/v1/object/public/videos/")) {
+        /* Supabase Storage file: remove the object as well, best effort */
+        const path = decodeURIComponent(url.split("/storage/v1/object/public/videos/")[1] || "");
+        if (path) await supabase.storage.from("videos").remove([path]);
       }
-    }else{
-      setCodeErr("Invalid evaluation code • كود التصحيح غير صحيح");
+      /* cloud records: always remove, even if the competition no longer exists */
+      if (isSupabaseConfigured) {
+        await supabase.from("works_cloud").delete().eq("id", w.id);
+        await supabase.from("evaluations").delete().eq("work_id", w.id);
+        await supabase.from("evaluations").delete().eq("id", "__approval__" + w.id);
+      }
+      deletedWorks.add(String(w.id));
+      setWorks(prev=>prev.filter(item=>item.id!==w.id));
+      setEvals(prev=>prev.filter(item=>item.workId!==w.id));
+      setLikes(prev=>prev.filter(item=>item.workId!==w.id));
+      setShowCodePrompt(false); setCodeInput(""); setCodeErr("");
+    } catch (err: any) {
+      setCodeErr("❌ Delete Error: " + (err?.message||"unknown"));
     }
   }
 
@@ -717,11 +738,12 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
           <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-[#0f1535] p-6 shadow-2xl" onClick={e=>e.stopPropagation()}>
             <div className="text-center mb-5">
               <div className="text-3xl mb-2">🔐</div>
-              <h3 className="text-xl font-black text-white">Evaluation Code</h3>
+              <h3 className="text-xl font-black text-white">{codeMode==="delete"?"Removal Code • كود الحذف":"Evaluation Code"}</h3>
               <p className="text-sm text-white/50 mt-1">أدخل كود التصحيح الخاص بالمسابقة</p>
+              <p className="mt-2 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2 text-[11px] font-bold leading-5 text-rose-100">لحذف أي فيديو (حتى لو حُذفت مسابقته) استخدم كود الحذف الموحّد: <span className="font-black tracking-widest">Remove2050</span></p>
             </div>
             <div className="space-y-4">
-              <input value={codeInput} onChange={e=>{setCodeInput(e.target.value);if(codeErr)setCodeErr("")}} onKeyDown={e=>e.key==="Enter"&&verifyCode()} placeholder="Evaluation Code" className="w-full rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3 text-white text-center text-lg font-black tracking-[0.3em] uppercase outline-none placeholder:text-white/20 focus:border-[#FDB51F]" autoFocus/>
+              <input value={codeInput} onChange={e=>{setCodeInput(e.target.value);if(codeErr)setCodeErr("")}} onKeyDown={e=>e.key==="Enter"&&verifyCode()} placeholder={codeMode==="delete"?"Remove2050":"Evaluation Code"} className="w-full rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3 text-white text-center text-lg font-black tracking-[0.3em] uppercase outline-none placeholder:text-white/20 focus:border-[#FDB51F]" autoFocus/>
               {codeErr&&<div className="rounded-xl bg-rose-500/10 border border-rose-400/20 px-4 py-3 text-sm text-rose-200 font-bold text-center">{codeErr}</div>}
               <div className="flex gap-3">
                 <button onClick={()=>{setShowCodePrompt(false);setCodeErr("")}} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-bold text-white/60">Cancel</button>
@@ -1188,7 +1210,7 @@ export default function App(){
         }
         const {data:dbWorks} = await supabase.from("works_cloud").select("*").order('at',{ascending:false});
         if(dbWorks && dbWorks.length > 0){
-          const mapped = dbWorks.map((w:any)=>({
+          const mapped = dbWorks.filter((w:any)=>!deletedWorks.has(String(w.id))).map((w:any)=>({
             id:w.id, competitionId:w.competition_id, studentId:w.student_id,
             title:w.title, desc:w.desc||"", videoUrl:w.video_url, thumb:w.thumb||"", at:w.at||new Date().toISOString(),
             status:(w.status==="approved"?"approved":"pending") as WorkStatus,
