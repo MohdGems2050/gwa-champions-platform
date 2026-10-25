@@ -1746,10 +1746,11 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
   const[email,setEmail]=useState(""); const[fpErr,setFpErr]=useState(""); const[fpOk,setFpOk]=useState(false);
   const[attempts,setAttempts]=useState(0); const[revealed,setRevealed]=useState(false); const[busy,setBusy]=useState(false);
   const MAX_TRIES=5;
+  const[mailStatus,setMailStatus]=useState<"idle"|"sending"|"sent"|"manual">("idle");
 
   function sub(e:React.FormEvent){e.preventDefault(); const t=pw.trim(); if(t===adminPw){setErr("");onOk()}else{setErr("Incorrect password");setPw("")}}
 
-  async function sendRecovery(toEmail:string){
+  function openMailClient(toEmail:string){
     const body=[
       "GWA Champions — Administrator access",
       "بيانات دخول بوابة الإدارة",
@@ -1760,8 +1761,26 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
       "Portal: https://gwa-champions-platform.vercel.app",
       "بعد الدخول يمكنك تغيير كلمة المرور من تبويب Security.",
     ].join("\n");
-    try{ await navigator.clipboard.writeText(`Password: ${adminPw}\nRecovery code: ${ADMIN_RECOVERY_CODE}`); }catch{}
     window.location.href=`mailto:${toEmail}?subject=${encodeURIComponent("GWA Champions — Admin access details")}&body=${encodeURIComponent(body)}`;
+  }
+
+  async function sendRecovery(toEmail:string){
+    setMailStatus("sending");
+    try{ await navigator.clipboard.writeText(`Password: ${adminPw}\nRecovery code: ${ADMIN_RECOVERY_CODE}`); }catch{}
+    try{
+      const res=await fetch("/api/send-mail",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({to:toEmail,password:adminPw,code:ADMIN_RECOVERY_CODE}),
+      });
+      const data=await res.json().catch(()=>({}));
+      if(res.ok && data?.ok){
+        setMailStatus("sent");
+        return;
+      }
+    }catch{}
+    /* no mail provider configured (or network issue) → honest manual fallback */
+    setMailStatus("manual");
   }
 
   function submitForgot(e:React.FormEvent){
@@ -1808,7 +1827,7 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
         </form>
 
         <div className="mt-4 text-center">
-          <button type="button" onClick={()=>{setForgot(true);setFpErr("");setFpOk(false);setEmail("");}} className="text-[12px] font-bold text-white/40 underline decoration-dotted transition hover:text-[#FFE29A]">Forgot password? • نسيت كلمة المرور</button>
+          <button type="button" onClick={()=>{setForgot(true);setFpErr("");setFpOk(false);setEmail("");setMailStatus("idle");}} className="text-[12px] font-bold text-white/40 underline decoration-dotted transition hover:text-[#FFE29A]">Forgot password? • نسيت كلمة المرور</button>
         </div>
       </div>
 
@@ -1851,15 +1870,32 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
                 </form>
               ) : (
                 <div className="space-y-3">
-                  <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-4 text-center">
-                    <p className="text-2xl">📬</p>
-                    <p className="mt-2 text-sm font-black text-emerald-200">تم تجهيز بيانات الدخول</p>
-                    <p className="mt-1 text-[12px] leading-6 text-emerald-100/80">سيتم إرسال كلمة المرور ورمز الاستعادة إلى:<br/><span dir="ltr" className="font-black text-white">{ADMIN_EMAIL}</span></p>
-                  </div>
-                  <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[11px] font-bold leading-6 text-white/45">
-                    إن لم يُفتح برنامج البريد تلقائياً، استخدم الزر أدناه. كما نُسخت البيانات إلى الحافظة.
-                  </p>
-                  <button type="button" onClick={()=>void sendRecovery(ADMIN_EMAIL)} className="w-full rounded-2xl bg-[#1697E8] py-3.5 text-sm font-black text-white hover:bg-sky-400">📧 إعادة إرسال البيانات</button>
+                  {mailStatus==="sending"&&(
+                    <div className="rounded-2xl border border-sky-400/25 bg-sky-500/10 p-4 text-center">
+                      <p className="text-2xl">⏳</p>
+                      <p className="mt-2 text-sm font-black text-sky-200">جاري الإرسال… • Sending</p>
+                    </div>
+                  )}
+                  {mailStatus==="sent"&&(
+                    <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-4 text-center">
+                      <p className="text-2xl">✅</p>
+                      <p className="mt-2 text-sm font-black text-emerald-200">تم إرسال البيانات فعلياً</p>
+                      <p className="mt-1 text-[12px] leading-6 text-emerald-100/80" dir="rtl">أُرسلت كلمة المرور ورمز الاستعادة إلى بريد الإدارة المسجّل. تحقّق من صندوق الوارد (ومجلد الرسائل غير المرغوبة).</p>
+                      <p className="mt-1 text-[12px] font-black text-white" dir="ltr">{ADMIN_EMAIL}</p>
+                    </div>
+                  )}
+                  {mailStatus==="manual"&&(
+                    <div className="rounded-2xl border border-[#FDB51F]/30 bg-[#FDB51F]/10 p-4">
+                      <p className="text-center text-2xl">✉️</p>
+                      <p className="mt-2 text-center text-sm font-black text-[#FFE29A]">الإرسال التلقائي غير مُفعّل بعد</p>
+                      <p className="mt-2 text-[12px] font-bold leading-6 text-white/65" dir="rtl">
+                        لا توجد خدمة بريد مربوطة بالموقع، لذلك لم تُرسل الرسالة تلقائياً. اضغط الزر أدناه لتفتح رسالة جاهزة في برنامج البريد على جهازك — تحتوي كلمة المرور ورمز الاستعادة — ثم اضغط «إرسال». وقد نُسخت البيانات أيضاً إلى الحافظة.
+                      </p>
+                      <p className="mt-2 text-center text-[11px] font-black text-white" dir="ltr">{ADMIN_EMAIL}</p>
+                    </div>
+                  )}
+                  <button type="button" onClick={()=>void sendRecovery(ADMIN_EMAIL)} disabled={mailStatus==="sending"} className={cn("w-full rounded-2xl py-3.5 text-sm font-black text-white transition",mailStatus==="sending"?"cursor-not-allowed bg-white/10 text-white/30":"bg-[#1697E8] hover:bg-sky-400")}>{mailStatus==="manual"?"📧 فتح رسالة جاهزة للإرسال":"↻ إعادة المحاولة"}</button>
+                  <button type="button" onClick={()=>openMailClient(ADMIN_EMAIL)} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-xs font-black text-white/60 hover:bg-white/10">✉️ إرسال يدوي من بريدي • Manual send</button>
                   <button type="button" onClick={()=>{setForgot(false);setFpOk(false);}} className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-black text-white/70 hover:bg-white/10">إغلاق • Close</button>
                 </div>
               )}
