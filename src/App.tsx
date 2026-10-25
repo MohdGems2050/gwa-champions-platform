@@ -336,47 +336,63 @@ function StatusPill({w}:{w:Work}){
 
 /* Teacher approves a submission by typing their own username */
 function TeacherApproveModal({work,users,setWorks,onClose}:{work:Work;users:User[];setWorks:React.Dispatch<React.SetStateAction<Work[]>>;onClose:()=>void}){
-  const[username,setUsername]=useState(""); const[err,setErr]=useState(""); const[busy,setBusy]=useState(false);
+  const[username,setUsername]=useState(""); const[password,setPassword]=useState("");
+  const[err,setErr]=useState(""); const[busy,setBusy]=useState(false);
+  const norm=(x:any)=>String(x||"").trim().toLowerCase();
+  const mapRow=(r:any):User=>({id:r.id,fullName:r.full_name||r.username||"Teacher",role:"teacher",grade:r.grade||"",section:r.section||"",teacherId:undefined,username:r.username,password:String(r.password??""),createdAt:r.created_at||"",active:r.active!==false});
+
   async function submit(e:React.FormEvent){
     e.preventDefault();
-    const uname=username.trim().toLowerCase();
-    if(!uname){setErr("أدخل اسم المستخدم • Enter your teacher username");return}
+    const uname=username.trim(); const pass=password;
+    if(!uname||!pass){setErr("أدخل اسم المستخدم وكلمة المرور • Enter username and password");return}
     setBusy(true); setErr("");
     try{
-      let teacher=users.find(x=>x.role==="teacher" && String(x.username).toLowerCase()===uname && x.active!==false);
+      /* 1) cached/synced list first */
+      let teacher=users.find(x=>x.role==="teacher" && norm(x.username)===norm(uname) && String(x.password)===pass && x.active!==false);
+      /* 2) cloud is the source of truth — works on any device */
       if(!teacher && isSupabaseConfigured){
         const{data,error}=await supabase.from("accounts").select("*").ilike("username",uname).limit(20);
         if(error) console.warn("approval lookup:",error.message);
-        const row=((data||[]) as any[]).find(r=>r.role==="teacher" && r.active!==false);
-        if(row) teacher={id:row.id,fullName:row.full_name||row.username,role:"teacher",grade:row.grade||"",section:row.section||"",teacherId:undefined,username:row.username,password:String(row.password??""),createdAt:"",active:true};
+        const rows=((data||[]) as any[]);
+        const matched=rows.find(r=>String(r.password??"")===pass && r.role==="teacher" && r.active!==false);
+        if(matched) teacher=mapRow(matched);
+        else if(rows.some(r=>norm(r.username)===norm(uname))){
+          setErr("كلمة المرور غير صحيحة • Incorrect password"); setBusy(false); return;
+        }
       }
-      if(!teacher){setErr("لا يوجد معلم مفعّل بهذا الاسم • No active teacher with that username");setBusy(false);return}
+      if(!teacher){setErr("اسم المستخدم غير موجود أو ليس حساب معلم • Username not found or not a teacher account");setBusy(false);return}
       if(teacher.id===work.studentId){setErr("لا يمكن للمعلم اعتماد فيديو خاص به • A teacher cannot approve their own upload");setBusy(false);return}
       setWorks(p=>p.map(x=>x.id===work.id?{...x,status:"approved" as WorkStatus,approvedBy:teacher!.fullName,approvedAt:new Date().toISOString()}:x));
       onClose();
     }catch(e:any){setErr("تعذر الاعتماد • "+(e?.message||"error"))}
     finally{setBusy(false)}
   }
+
   return(
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md" onClick={onClose}>
-      <div className="w-full max-w-md rounded-[2rem] border border-[#FDB51F]/25 bg-[#0f1535] p-6 shadow-2xl" onClick={e=>e.stopPropagation()}>
-        <div className="text-center mb-4">
-          <div className="text-3xl mb-2">🔓</div>
-          <h3 className="text-lg font-black text-white">Approve Submission</h3>
-          <p className="text-sm text-white/50">اعتماد الفيديو — للمعلم فقط</p>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-3 mb-4">
-          <p className="text-sm font-black text-white line-clamp-1">{work.title}</p>
-          <p className="text-xs text-white/40 mt-0.5">{users.find(u=>u.id===work.studentId)?.fullName||"—"}</p>
-        </div>
-        <form onSubmit={submit} className="space-y-3">
-          <div><FL>Teacher Username • اسم مستخدم المعلم</FL><Inp value={username} onChange={e=>{setUsername(e.target.value);setErr("")}} placeholder="e.g. heba" autoFocus autoComplete="off"/></div>
-          {err&&<div className="rounded-xl bg-rose-500/10 border border-rose-400/20 px-4 py-3 text-sm font-bold text-rose-200">{err}</div>}
-          <div className="flex gap-3">
-            <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-black text-white/70">Cancel</button>
-            <button type="submit" disabled={busy} className={cn("flex-1 rounded-2xl py-3 text-sm font-black",busy?"bg-white/10 text-white/30":"bg-emerald-500 text-slate-950 hover:bg-emerald-400")}>{busy?"Checking…":"✅ Approve"}</button>
+      <div className="w-full max-w-md overflow-hidden rounded-[2rem] border border-[#FDB51F]/25 bg-[#0f1535] shadow-2xl" onClick={e=>e.stopPropagation()}>
+        <div className="h-1.5 w-full bg-gradient-to-r from-[#FDB51F] via-[#10B09B] to-[#1697E8]"/>
+        <div className="p-6">
+          <div className="text-center mb-4">
+            <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-2xl bg-emerald-500/15 text-2xl ring-1 ring-emerald-400/25">🔓</div>
+            <h3 className="text-lg font-black text-white">Approve Submission</h3>
+            <p className="text-sm text-white/50">اعتماد الفيديو — أي معلم باسمه وكلمة مروره</p>
           </div>
-        </form>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 mb-4">
+            <p className="text-sm font-black text-white line-clamp-1">{work.title}</p>
+            <p className="text-xs text-white/40 mt-0.5">{users.find(u=>u.id===work.studentId)?.fullName||"—"}</p>
+          </div>
+          <form onSubmit={submit} className="space-y-3">
+            <div><FL>Teacher Username • اسم مستخدم المعلم</FL><Inp value={username} onChange={e=>{setUsername(e.target.value);setErr("")}} placeholder="e.g. heba" autoFocus autoComplete="off"/></div>
+            <div><FL>Password • كلمة المرور</FL><Inp type="password" value={password} onChange={e=>{setPassword(e.target.value);setErr("")}} placeholder="••••••••" autoComplete="off"/></div>
+            {err&&<div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-bold leading-6 text-rose-200">{err}</div>}
+            <div className="flex gap-3">
+              <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-black text-white/70 hover:bg-white/10">Cancel</button>
+              <button type="submit" disabled={busy} className={cn("flex-[1.4] rounded-2xl py-3 text-sm font-black transition",busy?"cursor-not-allowed bg-white/10 text-white/30":"bg-emerald-500 text-slate-950 hover:bg-emerald-400")}>{busy?"Checking…":"✅ Approve • اعتماد"}</button>
+            </div>
+            <p className="text-center text-[10px] leading-5 text-white/30">Can also be approved from the Teacher Portal • يمكن الاعتماد أيضاً من بوابة المعلم</p>
+          </form>
+        </div>
       </div>
     </div>
   );
