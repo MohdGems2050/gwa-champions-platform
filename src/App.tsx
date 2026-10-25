@@ -1219,9 +1219,9 @@ export default function App(){
 
   if(view==="home")return<HomePage onStart={()=>setView("showcase")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")} onTeacher={()=>setView("teacherLogin")}/>;
   if(view==="showcase")return<ShowcasePage comps={comps} users={users} works={works} evals={evals} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} setComps={setComps} setCerts={setCerts} setArchive={setArchive} certs={certs} adminPw={adminPw} onPromote={promoteToCertificate} onBack={()=>setView("home")} onClass={c=>{setSelClass(c);setView("classBoard")}} onParticipate={id=>{setSelCompId(id);setView("studentLogin")}} onWinners={()=>setView("winners")} onAllWorks={()=>setView("allWorks")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")} onTeacher={()=>setView("teacherLogin")} />;
-  if(view==="allWorks")return<GlobalWorksPage users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/>;
+  if(view==="allWorks")return<GlobalWorksPage users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")} onTeacher={()=>setView("teacherLogin")}/>;
   if(view==="winners")return<WinnersPage comps={comps} works={works} evals={evals} users={users} likes={likes} setLikes={setLikes} certs={certs} onPromote={promoteToCertificate} adminPw={adminPw} onArchive={handleArchive} onBack={()=>setView("showcase")}/>;
-  if(view==="classBoard"&&selClass)return<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/>;
+  if(view==="classBoard"&&selClass)return<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")} onTeacher={()=>setView("teacherLogin")}/>;
   if(view==="adminLogin")return<AdminLoginPage adminPw={adminPw} onBack={()=>setView("home")} onOk={()=>setView("admin")}/>;
   if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw} onBack={()=>setView("home")} />;
   if(view==="studentLogin")return<StudentLoginPage users={users} onBack={()=>setView("home")} onOk={s=>{ if(s.role==="teacher"){setCurrentTeacher(s);setCurrentStudent(s);setView("teacherPortal");} else {setCurrentStudent(s);setView("student");} }}/>;
@@ -1547,15 +1547,14 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
 /* ════════════════════════════════════
    3. CLASS BOARD
    ════════════════════════════════════ */
-function ClassBoardPage({cls,users,works,evals,comps,likes,setLikes,setEvals,setWorks,certs,onPromote,onBack}:{cls:ClassInfo;users:User[];works:Work[];evals:Ev[];comps:Comp[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void}){
+function ClassBoardPage({cls,users,works,evals,comps,likes,setLikes,setEvals,setWorks,certs,onPromote,onBack,onAdmin,onStudent,onTeacher}:{cls:ClassInfo;users:User[];works:Work[];evals:Ev[];comps:Comp[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void;onAdmin:()=>void;onStudent:()=>void;onTeacher:()=>void}){
   const classWorks=useMemo(()=>works.filter(w=>{const s=users.find(u=>u.id===w.studentId);return s&&s.grade===cls.grade&&s.section===cls.section;}),[cls,users,works]);
   return(
     <div className="relative min-h-screen bg-[#050916] text-white"><Bg/>
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#050916]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
+      <PortalBar onStudent={onStudent} onTeacher={onTeacher} onAdmin={onAdmin} onHome={onBack}/>
+      <header className="sticky top-[68px] z-20 border-b border-white/10 bg-[#050916]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
         <button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white">← Back</button>
-        <div className="flex items-center gap-3">
-          <Logo s/>
-        </div>
+        <span className="text-[11px] font-bold text-white/40">Class gallery • لوحة الصف</span>
       </header>
       <section className="relative z-10 border-b border-white/10 bg-[radial-gradient(circle_at_top,rgba(22,151,232,0.24),transparent_35%),linear-gradient(160deg,#111a45,#050916_80%)] px-6 py-16 text-center">
         <div className="text-xs font-black uppercase tracking-[0.34em] text-white/40">Gallery of Excellence • معرض التميز</div>
@@ -1576,11 +1575,12 @@ function ClassBoardPage({cls,users,works,evals,comps,likes,setLikes,setEvals,set
 /* ════════════════════════════════════
    4. GLOBAL WORKS
    ════════════════════════════════════ */
-function GlobalWorksPage({users,works,evals,comps,likes,setLikes,setEvals,setWorks,certs,onPromote,onBack}:{users:User[];works:Work[];evals:Ev[];comps:Comp[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void}){
+function GlobalWorksPage({users,works,evals,comps,likes,setLikes,setEvals,setWorks,certs,onPromote,onBack,onAdmin,onStudent,onTeacher}:{users:User[];works:Work[];evals:Ev[];comps:Comp[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void;onAdmin:()=>void;onStudent:()=>void;onTeacher:()=>void}){
   const sorted=useMemo(()=>[...works].sort((a,b)=>b.at.localeCompare(a.at)),[works]);
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
+      <PortalBar onStudent={onStudent} onTeacher={onTeacher} onAdmin={onAdmin} onHome={onBack}/>
+      <header className="sticky top-[68px] z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
         <button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white">← Back</button>
         <div className="flex items-center gap-3">
           <Logo s/>
