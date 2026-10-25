@@ -200,34 +200,36 @@ function sv(k:string,v:any){
           }
         }
       }
-      /* ── COMPETITIONS: mirror to the cloud so edits/deletes reach every device ── */
+      /* ── COMPETITIONS: mirrored into the `certificates` table ──
+         The project has no competitions_cloud table, so competition records are stored
+         as rows with the id prefix "__comp__" and the JSON payload in comp_name.
+         This makes the competition list identical on every device. */
       if(k===SK.c && Array.isArray(v)){
-        const rows = v.map((c:any)=>({
-          id:String(c.id), name_en:c.nameEn||"", name_ar:c.nameAr||"",
-          logo_url:c.logoUrl||"/gems-logo.png",
-          grades:Array.isArray(c.grades)?c.grades:[],
-          rules_ar:c.rulesAr||"", rules_en:c.rulesEn||"",
-          closing_date:c.closingDate||"", cert_date:c.certDate||"",
-          started:c.started!==false, archived:c.archived===true,
-          criteria:Array.isArray(c.criteria)?c.criteria:[],
-          eval_code:c.evalCode||""
+        const payload = v.map((c:any)=>({
+          id:"__comp__"+String(c.id),
+          work_id:"__comp__",
+          student_id:"",
+          comp_id:String(c.id),
+          comp_name:JSON.stringify({
+            nameEn:c.nameEn||"", nameAr:c.nameAr||"", logoUrl:c.logoUrl||"/gems-logo.png",
+            grades:Array.isArray(c.grades)?c.grades:[], rulesAr:c.rulesAr||"", rulesEn:c.rulesEn||"",
+            closingDate:c.closingDate||"", certDate:c.certDate||"",
+            started:c.started!==false, archived:c.archived===true,
+            criteria:Array.isArray(c.criteria)?c.criteria:[], evalCode:c.evalCode||""
+          }),
+          score:0, rank:0, grade:"", section:"", issued_at:new Date().toISOString().slice(0,10)
         }));
-        const sentinel = {
-          id:"__meta__", name_en:"__meta__", name_ar:"__meta__", logo_url:"",
-          grades:[], rules_ar:"", rules_en:"", closing_date:"", cert_date:"",
-          started:true, archived:true, criteria:[], eval_code:""
-        };
-        const payload = [sentinel, ...rows];
-        if(payload.length>0){
-          const {error} = await supabase.from("competitions_cloud").upsert(payload,{onConflict:"id"});
-          if(error) console.warn("competitions sync skipped:", error.message);
+        const meta = { id:"__compmeta__", work_id:"__comp__", student_id:"", comp_id:"__meta__", comp_name:"meta", score:0, rank:0, grade:"", section:"", issued_at:new Date().toISOString().slice(0,10) };
+        if(payload.length>0 || Array.isArray(v)){
+          const {error} = await supabase.from("certificates").upsert([meta,...payload],{onConflict:"id"});
+          if(error) console.error("competitions sync:", error.message);
         }
-        const {data:cloudIds,error:listErr} = await supabase.from("competitions_cloud").select("id");
-        if(!listErr && Array.isArray(cloudIds)){
-          const keep = new Set([...rows.map((r:any)=>r.id),"__meta__"]);
-          const stale = cloudIds.map((r:any)=>String(r.id)).filter((id:string)=>!keep.has(id) && !id.startsWith("__"));
+        const {data:cloudCompRows,error:listErr} = await supabase.from("certificates").select("id").like("id","__comp__%");
+        if(!listErr && Array.isArray(cloudCompRows)){
+          const keep = new Set(payload.map((r:any)=>r.id));
+          const stale = cloudCompRows.map((r:any)=>String(r.id)).filter((id:string)=>!keep.has(id) && id!=="__compmeta__");
           for(const id of stale){
-            await supabase.from("competitions_cloud").delete().eq("id",id);
+            await supabase.from("certificates").delete().eq("id",id);
           }
         }
       }
@@ -1148,13 +1150,58 @@ export default function App(){
             localStorage.setItem(SK.w,JSON.stringify(merged));
             return merged;
           });
+
+          /* A video must never be invisible because its competition is missing on this
+             device — create a placeholder competition so the card still renders. */
+          setComps(prev=>{
+            const known=new Set(prev.map(c=>c.id));
+            const missing=mapped.filter((w:any)=>w.competitionId&&!known.has(w.competitionId));
+            if(missing.length===0) return prev;
+            const placeholders:Comp[]=Array.from(new Set(missing.map((w:any)=>String(w.competitionId)))).map(id=>({
+              id, nameEn:"Competition", nameAr:"مسابقة", logoUrl:"/gems-logo.png",
+              grades:[], rulesAr:"", rulesEn:"", closingDate:"", certDate:"",
+              started:true, archived:false, criteria:DEFAULT_CRITERIA, evalCode:""
+            }));
+            const next=[...prev,...placeholders];
+            try{ localStorage.setItem(SK.c,JSON.stringify(next)); }catch{}
+            return next;
+          });
         }
+        /* competitions mirrored in `certificates` (id __comp__*) */
+        let cloudCompetitionsLoaded = false;
+        try{
+          const {data:compRows,error:compErr} = await supabase.from("certificates").select("*").like("id","__comp__%");
+          if(!compErr && Array.isArray(compRows)){
+            const list = compRows.filter((r:any)=>String(r.id).startsWith("__comp__") && String(r.id)!=="__compmeta__").map((r:any)=>{
+              let meta:any={};
+              try{ meta = r.comp_name ? JSON.parse(r.comp_name) : {}; }catch{ meta = {}; }
+              return {
+                id:String(r.comp_id||String(r.id).replace("__comp__","")),
+                nameEn:meta.nameEn||"Competition", nameAr:meta.nameAr||"مسابقة",
+                logoUrl:meta.logoUrl||"/gems-logo.png",
+                grades:Array.isArray(meta.grades)?meta.grades:[],
+                rulesAr:meta.rulesAr||"", rulesEn:meta.rulesEn||"",
+                closingDate:meta.closingDate||"", certDate:meta.certDate||"",
+                started:meta.started!==false, archived:meta.archived===true,
+                criteria:Array.isArray(meta.criteria)&&meta.criteria.length?meta.criteria:DEFAULT_CRITERIA,
+                evalCode:meta.evalCode||""
+              } as Comp;
+            });
+            if(list.length>0){
+              setComps(list);
+              cloudCompetitionsLoaded = true;
+              try{ localStorage.setItem(SK.c,JSON.stringify(list)); }catch{}
+            }
+          }
+        }catch(e){ console.warn("competition load skipped", e); }
+
         const {data:dbComps,error:compsErr} = await supabase.from("competitions_cloud").select("*");
         if(!compsErr && Array.isArray(dbComps)){
           const adminRow = dbComps.find((c:any)=>String(c.id)==="__admin__");
           if(adminRow?.name_en) setAdminPw(String(adminRow.name_en));
           const realRows = dbComps.filter((c:any)=>String(c.id)!=="__meta__" && !String(c.id).startsWith("__"));
-          if(realRows.length>0){
+          const initialized = dbComps.some((c:any)=>String(c.id)==="__meta__");
+          if(!cloudCompetitionsLoaded && realRows.length>0){
             const mapped = realRows.map((c:any)=>({
               id:c.id, nameEn:c.name_en||"Competition", nameAr:c.name_ar||"مسابقة",
               logoUrl:c.logo_url||"/gems-logo.png",
