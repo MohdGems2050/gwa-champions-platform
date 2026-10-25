@@ -911,7 +911,7 @@ function TeacherPortalPage({teacher,users,works,comps,setWorks,onUpload,onBack}:
 
   return(
     <div className="relative min-h-screen bg-[linear-gradient(180deg,#0b1028,#0f1a3d,#0d1230)] text-white"><Bg/>
-      <header className="sticky top-0 z-30 border-b border-white/[0.07] bg-[#0b1028]/85 backdrop-blur-xl">
+      <header className="sticky top-0 z-[60] border-b border-white/10" style={{background:"#0b1028"}}>
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <Logo s/>
@@ -1251,10 +1251,10 @@ function HomePage({onStart,onAdmin,onStudent,onTeacher}:{onStart:()=>void;onAdmi
     {num:"10",en:"Criteria",ar:"معايير التقييم",c:"text-emerald-300"},
   ];
   return(
-  <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#0b1028,#0f1535,#0d1230)] text-white"><Bg/>
+  <div className="relative min-h-screen overflow-x-clip bg-[linear-gradient(180deg,#0b1028,#0f1535,#0d1230)] text-white"><Bg/>
 
     {/* ── HEADER ── */}
-    <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0b1028]/85 backdrop-blur-xl">
+    <header className="sticky top-0 z-[60] border-b border-white/10 shadow-[0_10px_30px_-18px_rgba(0,0,0,0.9)]" style={{background:"#0b1028"}}>
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3 sm:gap-4">
           <Logo s/>
@@ -1420,7 +1420,7 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
   if(!selComp){
     return(
       <div className="relative min-h-screen bg-[linear-gradient(180deg,#0d1230,#111a45,#0d1230)] text-white"><Bg/>
-        <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
+        <header className="sticky top-0 z-[60] border-b border-white/10 px-6 py-4 flex justify-between items-center" style={{background:"#0f1535"}}>
           <div className="flex items-center gap-4"><Logo s/><div><h2 className="text-lg font-black uppercase italic">Active Competitions</h2><p className="text-sm text-white/40" dir="rtl">المسابقات النشطة</p></div></div>
           <div className="flex gap-3">
             <button onClick={()=>{ if(adminMode) setAdminMode(false); else setAskPw(true); }} className={cn("rounded-full border px-4 py-2.5 text-xs font-black transition",adminMode?"border-emerald-400/40 bg-emerald-500/20 text-emerald-200":"border-white/10 bg-white/5 text-white/70 hover:bg-white/10")}>{adminMode?"✅ Admin mode":"🔒 Admin"}</button>
@@ -1491,7 +1491,7 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
   // ── COMPETITION WORKS VIEW (competition selected) ──
   return(
     <div className="relative min-h-screen bg-[linear-gradient(180deg,#0d1230,#111a45,#0d1230)] text-white"><Bg/>
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
+      <header className="sticky top-0 z-[60] border-b border-white/10 px-6 py-4 flex justify-between items-center" style={{background:"#0f1535"}}>
         <button onClick={()=>{setSelCompId(null);setGradeFilter(null)}} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">← All Competitions</button>
         <div className="flex gap-3">
           <button onClick={onWinners} className="rounded-xl px-4 py-2 text-sm font-black bg-gradient-to-r from-[#FDB51F] to-[#E21455] text-white shadow-lg hover:brightness-110">🏅 Winners</button>
@@ -1545,7 +1545,7 @@ function ClassBoardPage({cls,users,works,evals,comps,likes,setLikes,setEvals,set
   const classWorks=useMemo(()=>works.filter(w=>{const s=users.find(u=>u.id===w.studentId);return s&&s.grade===cls.grade&&s.section===cls.section;}),[cls,users,works]);
   return(
     <div className="relative min-h-screen bg-[#050916] text-white"><Bg/>
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#050916]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
+      <header className="sticky top-0 z-[60] border-b border-white/10 px-6 py-4 flex justify-between items-center" style={{background:"#050916"}}>
         <button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white">← Back</button>
         <div className="flex items-center gap-3">
           <Logo s/>
@@ -1574,7 +1574,7 @@ function GlobalWorksPage({users,works,evals,comps,likes,setLikes,setEvals,setWor
   const sorted=useMemo(()=>[...works].sort((a,b)=>b.at.localeCompare(a.at)),[works]);
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
+      <header className="sticky top-0 z-[60] border-b border-white/10 px-6 py-4 flex justify-between items-center" style={{background:"#0f1535"}}>
         <button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white">← Back</button>
         <div className="flex items-center gap-3">
           <Logo s/>
@@ -1635,7 +1635,7 @@ function WinnersPage({comps,works,evals,users,likes,setLikes,certs,onPromote,adm
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
       <div className="pointer-events-none fixed top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-[#FDB51F]/8 blur-[100px] rounded-full"/>
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center"><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white">← Back</button><Logo s/></header>
+      <header className="sticky top-0 z-[60] border-b border-white/10 px-6 py-4 flex justify-between items-center" style={{background:"#0f1535"}}><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white">← Back</button><Logo s/></header>
 
       <section className="relative z-10 px-6 py-14 text-center border-b border-white/10 bg-[radial-gradient(ellipse_at_top,rgba(253,181,31,0.15),transparent_45%)]">
         <div className="text-5xl mb-4">🏅</div>
@@ -2150,7 +2150,7 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
 
   return(
     <div className="relative min-h-screen bg-[linear-gradient(180deg,#0d1230,#111a45,#0d1230)] text-white"><Bg/>
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
+      <header className="sticky top-0 z-[60] border-b border-white/10 px-6 py-4 flex justify-between items-center" style={{background:"#0f1535"}}>
         <div className="flex items-center gap-4"><Logo s/><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#FDB51F]">Administration Portal • بوابة الإدارة</div><h1 className="text-xl font-black">User & Competition Management</h1></div></div>
         <div className="flex gap-3"><button onClick={()=>setTab("security")} className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-bold text-white hover:bg-white/10">🔑 Password</button><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-bold text-white hover:bg-white/10">Home</button></div>
       </header>
@@ -2369,7 +2369,7 @@ function TeacherPage({teacher,users,works,comps,evals,setEvals,onBack}:{teacher:
   
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center"><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-sky-300">Teacher Account</div><h1 className="text-xl font-black">{teacher.fullName}</h1></div><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">Back</button></header>
+      <header className="sticky top-0 z-[60] border-b border-white/10 px-6 py-4 flex justify-between items-center" style={{background:"#0f1535"}}><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-sky-300">Teacher Account</div><h1 className="text-xl font-black">{teacher.fullName}</h1></div><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">Back</button></header>
       <main className="max-w-4xl mx-auto px-6 py-10"><div className="grid gap-4 md:grid-cols-3 mb-10"><Stat l="Students" v={myStudents.length} s="طلابي"/><Stat l="Works" v={myWorks.length} s="الأعمال"/><Stat l="Criteria" v="10" s="عناصر"/></div>
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">{myWorks.map(w=>{const stu=myStudents.find(s=>s.id===w.studentId);const co=comps.find(c=>c.id===w.competitionId);const ev=evals.find(e=>e.workId===w.id);if(!stu)return null;return(
           <article key={w.id} className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden"><SecureVideo path={w.videoUrl} poster={w.thumb} controls className="w-full aspect-video object-cover"/><div className="p-5"><div className="text-[10px] font-black uppercase text-sky-300">{co?.nameEn}</div><h3 className="text-base font-black text-white mt-1">{w.title}</h3><p className="text-sm text-[#FDB51F] mt-1">👤 {stu.fullName}</p><div className="mt-4"><div className="w-full rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-sm font-bold text-white/50 text-center">Use Evaluation Code on Works ⬆</div></div></div></article>);})}</div></main>
@@ -2558,7 +2558,7 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
       {step==="consent"&&selComp&&<ConsentModal student={student} compAr={selComp.nameAr} compEn={selComp.nameEn} onOk={()=>setStep("form")} onNo={()=>setStep("idle")}/>}
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center"><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#FDB51F]">Student Portal</div>{student.role==="teacher"&&<div className="mt-1 inline-block rounded-full bg-[#FDB51F]/15 border border-[#FDB51F]/30 px-3 py-1 text-[10px] font-black text-[#FFE29A]">👩‍🏫 Teacher upload mode — uploads need another teacher's approval</div>}<h1 className="text-xl font-black">{student.fullName}</h1><p className="text-sm text-white/50">{student.grade} • {student.section}</p></div><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">Back</button></header>
+      <header className="sticky top-0 z-[60] border-b border-white/10 px-6 py-4 flex justify-between items-center" style={{background:"#0f1535"}}><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#FDB51F]">Student Portal</div>{student.role==="teacher"&&<div className="mt-1 inline-block rounded-full bg-[#FDB51F]/15 border border-[#FDB51F]/30 px-3 py-1 text-[10px] font-black text-[#FFE29A]">👩‍🏫 Teacher upload mode — uploads need another teacher's approval</div>}<h1 className="text-xl font-black">{student.fullName}</h1><p className="text-sm text-white/50">{student.grade} • {student.section}</p></div><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">Back</button></header>
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex flex-wrap gap-2 mb-8 bg-white/5 border border-white/10 rounded-2xl p-1.5">
           <button onClick={()=>setSTab("participate")} className={cn("rounded-xl px-5 py-3 text-sm font-black",sTab==="participate"?"bg-[#FDB51F] text-slate-950":"text-white/50")}>🎓 Participate</button>
