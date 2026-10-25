@@ -112,34 +112,6 @@ function rulesForPreset(idx?:number, nameAr?:string, nameEn?:string){
   return { ar: ruleTemplateAr(ar), en: ruleTemplateEn(en) };
 }
 
-
-/* ═══════ APPEARANCE / THEME (admin controlled) ═══════ */
-type Theme = { bg1:string; bg2:string; accent:string; surface:string };
-const DEFAULT_THEME: Theme = { bg1:"#0a1024", bg2:"#101a38", accent:"#FDB51F", surface:"#ffffff" };
-const THEME_PRESETS: Array<{name:string; nameAr:string; t:Theme}> = [
-  { name:"Midnight",     nameAr:"منتصف الليل", t:{ bg1:"#0a1024", bg2:"#101a38", accent:"#FDB51F", surface:"#ffffff" } },
-  { name:"Calm Slate",   nameAr:"رمادي هادئ",  t:{ bg1:"#111827", bg2:"#1b2433", accent:"#7DD3FC", surface:"#ffffff" } },
-  { name:"Deep Teal",    nameAr:"أخضر عميق",   t:{ bg1:"#07231f", bg2:"#0d3a33", accent:"#5EEAD4", surface:"#ffffff" } },
-  { name:"Soft Plum",    nameAr:"بنفسجي هادئ", t:{ bg1:"#191228", bg2:"#2a1f3d", accent:"#F9A8D4", surface:"#ffffff" } },
-  { name:"Warm Sand",    nameAr:"رملي دافئ",   t:{ bg1:"#1c1a17", bg2:"#2a2620", accent:"#FCD34D", surface:"#ffffff" } },
-];
-const THEME_KEY = "gwa-theme-v1";
-function normalizeTheme(v:any):Theme{
-  const t = (v && typeof v==="object") ? v : {};
-  const pick=(x:any,f:string)=> (typeof x==="string" && /^#[0-9a-fA-F]{3,8}$/.test(x)) ? x : f;
-  return {
-    bg1: pick(t.bg1, DEFAULT_THEME.bg1),
-    bg2: pick(t.bg2, DEFAULT_THEME.bg2),
-    accent: pick(t.accent, DEFAULT_THEME.accent),
-    surface: pick(t.surface, DEFAULT_THEME.surface),
-  };
-}
-const themeVars = (t:Theme)=>({
-  "--gwa-bg1": t.bg1,
-  "--gwa-bg2": t.bg2,
-  "--gwa-accent": t.accent,
-} as React.CSSProperties);
-
 function getClassColor(grade: string) {
   const colors = [
     { bg:"rgba(22,151,232,0.35)", border:"#1697E8", glow:"rgba(22,151,232,0.15)" },
@@ -261,7 +233,7 @@ function sv(k:string,v:any){
         const {data:cloudIds,error:listErr} = await supabase.from("competitions_cloud").select("id");
         if(!listErr && Array.isArray(cloudIds)){
           const keep = new Set([...rows.map((r:any)=>r.id),"__meta__"]);
-          const stale = cloudIds.map((r:any)=>String(r.id)).filter((id:string)=>!keep.has(id) && !id.startsWith("__"));
+          const stale = cloudIds.map((r:any)=>String(r.id)).filter((id:string)=>!keep.has(id));
           for(const id of stale){
             await supabase.from("competitions_cloud").delete().eq("id",id);
           }
@@ -563,7 +535,7 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
   }
 
   return(
-    <article className="group rounded-2xl border border-white/[0.07] bg-white/[0.03] backdrop-blur-sm overflow-hidden flex flex-col transition-all hover:border-white/[0.12] hover:bg-white/[0.05]">
+    <article className="group rounded-[2rem] border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden flex flex-col hover:-translate-y-0.5 transition-all">
       <div className="relative bg-black">
         <WorkVideo w={w} users={users} setWorks={setWorks}/>
         {(isWinner||starOk)&&<div className="absolute top-2 right-2 bg-[#FDB51F] text-slate-900 text-xs font-black px-3 py-1 rounded-full shadow-lg">🏆 Winner</div>}
@@ -849,7 +821,7 @@ function TeacherPortalPage({teacher,users,works,comps,setWorks,onUpload,onBack}:
     setWorks(p=>p.map(x=>x.id===w.id?{...x,status:"approved" as WorkStatus,approvedBy:teacher.fullName,approvedAt:new Date().toISOString()}:x));
   }
   return(
-    <div className="relative min-h-screen text-white" style={{background:"linear-gradient(180deg,var(--gwa-bg1,#0b1028),var(--gwa-bg2,#0f1a3d),var(--gwa-bg1,#0d1230))"}}><Bg/>
+    <div className="relative min-h-screen bg-[linear-gradient(180deg,#0b1028,#0f1a3d,#0d1230)] text-white"><Bg/>
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0b1028]/85 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="flex items-center gap-3">
@@ -923,7 +895,6 @@ export default function App(){
   const[likes,setLikes]=useState<Like[]>(()=>ld(SK.l,[]));
   const[certs,setCerts]=useState<Cert[]>(()=>ld(SK.cert,[]));
   const[archive,setArchive]=useState<ArchiveEntry[]>(()=>ld(SK.arch,[]));
-  const[theme,setTheme]=useState<Theme>(()=>normalizeTheme(ld<any>(THEME_KEY, DEFAULT_THEME)));
   const[adminPw,setAdminPw]=useState<string>(()=>ld(SK.pw,"Gems@2050"));
   
   const[selClass,setSelClass]=useState<ClassInfo|null>(null);
@@ -978,11 +949,7 @@ export default function App(){
         }
         const {data:dbComps,error:compsErr} = await supabase.from("competitions_cloud").select("*");
         if(!compsErr && Array.isArray(dbComps)){
-          const settingsRow = dbComps.find((c:any)=>String(c.id)==="__settings__");
-          if(settingsRow?.name_en){
-            try{ setTheme(normalizeTheme(JSON.parse(settingsRow.name_en))); }catch{}
-          }
-          const realRows = dbComps.filter((c:any)=>String(c.id)!=="__meta__" && !String(c.id).startsWith("__"));
+          const realRows = dbComps.filter((c:any)=>String(c.id)!=="__meta__");
           const initialized = dbComps.some((c:any)=>String(c.id)==="__meta__");
           if(realRows.length>0){
             const mapped = realRows.map((c:any)=>({
@@ -1039,28 +1006,6 @@ export default function App(){
   useEffect(()=>{sv(SK.cert,certs)},[certs]);
   useEffect(()=>{sv(SK.arch,archive)},[archive]);
 
-  /* apply + persist the appearance theme (local + cloud) */
-  useEffect(()=>{
-    const r=document.documentElement;
-    const t=normalizeTheme(theme);
-    r.style.setProperty("--gwa-bg1",t.bg1);
-    r.style.setProperty("--gwa-bg2",t.bg2);
-    r.style.setProperty("--gwa-accent",t.accent);
-    document.body.style.background=`linear-gradient(180deg,${t.bg1},${t.bg2})`;
-    try{ localStorage.setItem(THEME_KEY,JSON.stringify(t)); }catch{}
-    if(!isSupabaseConfigured) return;
-    const id=setTimeout(async ()=>{
-      try{
-        await supabase.from("competitions_cloud").upsert({
-          id:"__settings__", name_en:JSON.stringify(t), name_ar:"__settings__", logo_url:"",
-          grades:[], rules_ar:"", rules_en:"", closing_date:"", cert_date:"",
-          started:true, archived:true, criteria:[], eval_code:""
-        },{onConflict:"id"});
-      }catch{}
-    },400);
-    return ()=>clearTimeout(id);
-  },[theme]);
-
   function promoteToCertificate(workId:string, compId:string, evalCode:string):boolean{
     const comp=comps.find(c=>c.id===compId);
     if(!comp||evalCode.trim().toUpperCase()!==comp.evalCode?.toUpperCase())return false;
@@ -1087,7 +1032,7 @@ export default function App(){
   if(view==="winners")return<WinnersPage comps={comps} works={works} evals={evals} users={users} likes={likes} setLikes={setLikes} certs={certs} onPromote={promoteToCertificate} adminPw={adminPw} onArchive={handleArchive} onBack={()=>setView("showcase")}/>;
   if(view==="classBoard"&&selClass)return<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/>;
   if(view==="adminLogin")return<AdminLoginPage adminPw={adminPw} onBack={()=>setView("home")} onOk={()=>setView("admin")}/>;
-  if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw} theme={theme} setTheme={setTheme} onBack={()=>setView("home")} />;
+  if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw} onBack={()=>setView("home")} />;
   if(view==="studentLogin")return<StudentLoginPage users={users} onBack={()=>setView("home")} onOk={s=>{setCurrentStudent(s);setView("student")}}/>;
   if(view==="teacherLogin")return<TeacherLoginPage users={users} onBack={()=>setView("home")} onOk={t=>{setCurrentTeacher(t);setCurrentStudent(t);setView("teacherPortal")}}/>;
   if(view==="teacherPortal"&&currentTeacher)return<TeacherPortalPage teacher={currentTeacher} users={users} works={works} comps={comps} setWorks={setWorks} onUpload={()=>{setCurrentStudent(currentTeacher);setView("student")}} onBack={()=>{setCurrentTeacher(null);setCurrentStudent(null);setView("home")}}/>;
@@ -1102,52 +1047,43 @@ export default function App(){
    ════════════════════════════════════ */
 function HomePage({onStart,onAdmin,onStudent,onTeacher}:{onStart:()=>void;onAdmin:()=>void;onStudent:()=>void;onTeacher:()=>void}){
   const pillars = [
-    {ar:"اللغة العربية",icon:"📖",tone:"border-sky-400/20 bg-sky-500/10 text-sky-200"},
-    {ar:"التربية الإسلامية",icon:"🕌",tone:"border-teal-400/20 bg-teal-500/10 text-teal-200"},
-    {ar:"الدراسات الاجتماعية",icon:"🌍",tone:"border-pink-400/20 bg-pink-500/10 text-pink-200"},
+    {ar:"اللغة العربية",en:"Arabic Language",icon:"📖",tone:"border-[#1697E8]/30 bg-[#1697E8]/15 text-sky-200"},
+    {ar:"التربية الإسلامية",en:"Islamic Education",icon:"🕌",tone:"border-[#10B09B]/30 bg-[#10B09B]/15 text-teal-200"},
+    {ar:"الدراسات الاجتماعية",en:"Social Studies",icon:"🌍",tone:"border-[#E21455]/30 bg-[#E21455]/15 text-pink-200"},
   ];
   const stats = [
     {num:"✦",en:"Competitions",ar:"المسابقات",c:"text-[#FDB51F]"},
     {num:"✦",en:"Class Galleries",ar:"لوحات الصفوف",c:"text-sky-300"},
     {num:"10",en:"Criteria",ar:"معايير التقييم",c:"text-emerald-300"},
   ];
-  const portals = [
-    {t:"Student Portal",ar:"بوابة الطالب",d:"ارفع مشاركتك وتابع حالة الاعتماد",icon:"🎓",tone:"bg-[#FDB51F]/12 text-[#FFE29A] ring-[#FDB51F]/25",go:onStudent},
-    {t:"Teacher Portal",ar:"بوابة المعلم",d:"اعتمد المشاركات وارفع فيديوهاتك",icon:"👩‍🏫",tone:"bg-[#1697E8]/12 text-sky-200 ring-[#1697E8]/25",go:onTeacher},
-    {t:"Administration",ar:"لوحة الإدارة",d:"إنشاء المسابقات والتحكم بالمنصة",icon:"🛡️",tone:"bg-white/[0.06] text-white/70 ring-white/15",go:onAdmin},
-  ];
   return(
-  <div dir="ltr" className="relative min-h-screen overflow-hidden text-white"
-       style={{background:"linear-gradient(180deg,var(--gwa-bg1,#0a1024),var(--gwa-bg2,#101a38))"}}>
-
-    {/* soft ambient light — no hard shapes */}
-    <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] opacity-60" aria-hidden="true"
-         style={{background:"radial-gradient(60% 100% at 50% 0%, color-mix(in srgb, var(--gwa-accent,#FDB51F) 16%, transparent), transparent 70%)"}}/>
+  <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#0b1028,#0f1535,#0d1230)] text-white"><Bg/>
 
     {/* ── HEADER ── */}
-    <header className="sticky top-0 z-30 border-b border-white/[0.07] backdrop-blur-xl" style={{background:"color-mix(in srgb, var(--gwa-bg1,#0a1024) 88%, transparent)"}}>
-      <div className="mx-auto flex max-w-5xl flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <div className="flex min-w-0 items-center gap-3">
+    <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0b1028]/85 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-3 sm:gap-4">
           <Logo s/>
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-black tracking-tight text-white sm:text-sm">GWA Champions</p>
-            <p className="truncate text-[10px] font-semibold text-white/45 sm:text-[11px]" dir="rtl">أبطال العربية والإسلامية</p>
+            <p className="truncate text-sm font-black uppercase italic tracking-tight text-white sm:text-base">GWA Champions</p>
+            <p className="truncate text-[11px] font-semibold text-[#FDB51F]/80 sm:text-xs" dir="rtl">أبطال اللغة العربية والتربية الإسلامية والدراسات الاجتماعية</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={onStudent} className="flex-1 rounded-full border border-white/10 bg-white/[0.05] px-3.5 py-2 text-[11px] font-bold text-white/80 transition hover:bg-white/10 sm:flex-none sm:px-4 sm:text-xs">🎓 Student</button>
-          <button onClick={onTeacher} className="flex-1 rounded-full border border-sky-400/25 bg-sky-500/10 px-3.5 py-2 text-[11px] font-bold text-sky-100 transition hover:bg-sky-500/20 sm:flex-none sm:px-4 sm:text-xs">👩‍🏫 Teacher</button>
-          <button onClick={onAdmin} className="flex-1 rounded-full px-3.5 py-2 text-[11px] font-black text-slate-950 shadow-sm transition hover:brightness-110 sm:flex-none sm:px-4 sm:text-xs" style={{background:"var(--gwa-accent,#FDB51F)"}}>Admin</button>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button onClick={onStudent} className="flex-1 rounded-full border border-white/15 bg-white/5 px-4 py-2.5 text-xs font-bold text-white backdrop-blur transition hover:bg-white/10 sm:flex-none sm:px-5 sm:text-sm">🎓 Student</button>
+          <button onClick={onTeacher} className="flex-1 rounded-full border border-[#1697E8]/40 bg-[#1697E8]/15 px-4 py-2.5 text-xs font-black text-sky-100 transition hover:bg-[#1697E8]/25 sm:flex-none sm:px-5 sm:text-sm">👩‍🏫 Teacher</button>
+          <button onClick={onAdmin} className="flex-1 rounded-full bg-[#FDB51F] px-4 py-2.5 text-xs font-black text-slate-950 shadow-lg shadow-[#FDB51F]/20 transition hover:bg-[#F7C84A] sm:flex-none sm:px-5 sm:text-sm">الإدارة • Admin</button>
         </div>
       </div>
     </header>
 
-    <main className="relative z-10 mx-auto max-w-5xl px-5 pb-14 pt-7 sm:px-6 sm:pt-9">
+    <main className="relative z-10 mx-auto max-w-7xl px-5 pb-16 pt-8 sm:px-6 lg:pt-12">
 
-      {/* ── HERO: smaller, soft edges, caption folding into the page ── */}
-      <section aria-label="GWA Champions" className="mx-auto max-w-3xl">
-        <figure className="m-0">
-          <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-black/20">
+      {/* ── HERO PHOTO: full, uncropped, taller banner ── */}
+      <section aria-label="GWA Champions" className="relative mx-auto max-w-6xl">
+        <div className="pointer-events-none absolute -inset-3 rounded-[2.5rem] bg-gradient-to-br from-[#1697E8]/25 via-[#FDB51F]/12 to-transparent blur-3xl sm:-inset-5" aria-hidden="true"/>
+        <figure className="relative m-0">
+          <div className="overflow-hidden rounded-[1.75rem] border border-[#FDB51F]/25 bg-[#0b1028] shadow-[0_30px_90px_-25px_rgba(22,151,232,0.5)] sm:rounded-[2.25rem]">
             <img
               src="/hero-student.png"
               alt="GWA Arabic and Islamic Champion holding the trophy"
@@ -1155,66 +1091,79 @@ function HomePage({onStart,onAdmin,onStudent,onTeacher}:{onStart:()=>void;onAdmi
               loading="eager"
             />
           </div>
-          <figcaption className="mt-4 flex flex-col items-center gap-2 text-center">
-            <p className="text-[15px] font-black tracking-tight text-white sm:text-xl">Arabic &amp; Islamic Champions</p>
-            <p className="text-xs font-bold sm:text-sm" style={{color:"var(--gwa-accent,#FDB51F)"}} dir="rtl">أبطال العربية والإسلامية</p>
-            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/35">
-              <span>GEMS World Academy Dubai</span>
-              <span aria-hidden="true">·</span>
-              <span dir="rtl">دبي — الإمارات</span>
+          <figcaption className="mt-3 flex flex-col items-center gap-4 rounded-[1.5rem] border border-white/10 bg-white/[0.04] px-5 py-4 text-center backdrop-blur-xl sm:mt-4 sm:flex-row sm:justify-between sm:rounded-[1.75rem] sm:px-7 sm:py-5 sm:text-left">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#FDB51F]/15 text-2xl ring-1 ring-[#FDB51F]/30">🏆</span>
+              <div>
+                <p className="text-base font-black leading-tight tracking-tight text-white sm:text-2xl">Arabic &amp; Islamic Champions</p>
+                <p className="mt-0.5 text-sm font-bold text-[#FFE29A] sm:text-lg" dir="rtl">أبطال العربية والإسلامية</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white/60">GEMS World Academy Dubai</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold text-white/60" dir="rtl">دبي — الإمارات</span>
             </div>
           </figcaption>
         </figure>
       </section>
 
-      {/* ── INTRO + ACTIONS ── */}
-      <section className="mx-auto mt-9 grid max-w-4xl items-start gap-7 sm:mt-12 lg:grid-cols-[1.15fr_1fr] lg:gap-10">
+      {/* ── CONTENT ── */}
+      <section className="mt-10 grid items-start gap-8 lg:mt-14 lg:grid-cols-[1.1fr_1fr] lg:gap-12">
 
+        {/* copy */}
         <div>
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1">
-            <span className="h-1.5 w-1.5 rounded-full" style={{background:"var(--gwa-accent,#FDB51F)"}}/>
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/50">GEMS World Academy Dubai</span>
+          <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-[#FDB51F]/25 bg-[#FDB51F]/10 px-4 py-1.5 sm:px-5 sm:py-2">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-[#FDB51F]"/>
+            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-[#FFE29A] sm:text-xs">GEMS World Academy Dubai</span>
           </div>
-          <h1 className="text-2xl font-black leading-[1.18] tracking-tight text-white sm:text-[2rem] lg:text-[2.3rem]">
+          <h2 className="text-3xl font-black leading-[1.15] tracking-tight text-white sm:text-4xl xl:text-5xl">
             Celebrating Our Students'
-            <span className="mt-1 block" style={{color:"var(--gwa-accent,#FDB51F)"}}>Outstanding Achievements</span>
-          </h1>
-          <p className="mt-3 max-w-lg text-[13px] leading-7 text-white/50 sm:text-sm">A calm, bilingual stage for student excellence in Arabic Language, Islamic Education &amp; Social Studies.</p>
+            <span className="mt-1 block bg-gradient-to-r from-[#FDB51F] via-[#1697E8] to-[#10B09B] bg-clip-text text-transparent">Outstanding Achievements</span>
+          </h2>
+          <p className="mt-4 max-w-xl text-sm leading-7 text-white/55 sm:text-base">A world-class bilingual platform showcasing student excellence in Arabic Language, Islamic Education &amp; Social Studies.</p>
 
-          <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.025] px-4 py-3.5" dir="rtl">
-            <p className="text-right text-[13px] font-bold leading-7 text-white/65 sm:text-sm">أهلاً بكم في <span className="font-black" style={{color:"var(--gwa-accent,#FDB51F)"}}>أكاديمية جيمس العالمية</span> — دبي، حيث نحتفل بإنجازات طلابنا في:</p>
-            <div className="mt-2.5 flex flex-wrap justify-end gap-1.5">
+          <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 px-5 py-4 backdrop-blur-sm sm:px-6" dir="rtl">
+            <p className="text-right text-sm font-bold leading-8 text-white/80 sm:text-base">أهلاً بكم في <span className="font-black text-[#FDB51F]">أكاديمية جيمس العالمية</span> — دبي، حيث نحتفل بإنجازات طلابنا الأبطال المتميزين في:</p>
+            <div className="mt-3 flex flex-wrap justify-end gap-2">
               {pillars.map(p=>(
-                <span key={p.ar} className={cn("rounded-full border px-2.5 py-1 text-[11px] font-bold",p.tone)}>{p.icon} {p.ar}</span>
+                <span key={p.en} title={p.en} className={cn("rounded-full border px-3 py-1.5 text-xs font-bold sm:text-sm",p.tone)}>{p.icon} {p.ar}</span>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col gap-4">
-          <button onClick={onStart} className="w-full rounded-xl px-5 py-3.5 text-sm font-black text-slate-950 shadow-sm transition hover:brightness-110" style={{background:"var(--gwa-accent,#FDB51F)"}}>
-            🚀 Start Viewing • بدء المشاهدة
+        {/* actions + stats */}
+        <div className="flex flex-col gap-6">
+          <button onClick={onStart} className="group w-full rounded-full bg-gradient-to-r from-[#FDB51F] to-[#E21455] p-[2px] shadow-[0_0_40px_rgba(253,181,31,0.3)] transition-all hover:scale-[1.02] hover:shadow-[0_0_60px_rgba(253,181,31,0.45)]">
+            <span className="flex items-center justify-center gap-3 rounded-full bg-[#0b1028] px-6 py-4">
+              <span className="text-xl">🚀</span>
+              <span className="text-base font-black text-white sm:text-lg">Start Viewing • بدء المشاهدة</span>
+            </span>
           </button>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-3">
             {stats.map(st=>(
-              <div key={st.en} className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-2 py-3 text-center">
-                <div className={cn("text-lg font-black",st.c)}>{st.num}</div>
-                <div className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.14em] text-white/35">{st.en}</div>
-                <div className="text-[10px] font-bold text-white/40" dir="rtl">{st.ar}</div>
+              <div key={st.en} className="rounded-2xl border border-white/10 bg-white/5 p-4 text-center backdrop-blur-sm transition hover:border-white/20 hover:bg-white/[0.07]">
+                <div className={cn("text-2xl font-black",st.c)}>{st.num}</div>
+                <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/40">{st.en}</div>
+                <div className="mt-1 text-xs font-bold text-white/50" dir="rtl">{st.ar}</div>
               </div>
             ))}
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.025]">
-            {portals.map(p=>(
-              <button key={p.t} onClick={p.go} className="group flex w-full items-center gap-3 border-b border-white/[0.06] px-3.5 py-3 text-left transition last:border-b-0 hover:bg-white/[0.05]">
-                <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg text-base ring-1",p.tone)}>{p.icon}</span>
+          <div className="grid gap-3">
+            {[
+              {t:"Student Portal",ar:"بوابة الطالب",d:"ارفع فيديو مشاركتك وتابع حالة الاعتماد",icon:"🎓",ring:"border-[#FDB51F]/40 hover:bg-[#FDB51F]/10",chip:"bg-[#FDB51F]/15 text-[#FFE29A]",go:onStudent},
+              {t:"Teacher Portal",ar:"بوابة المعلم",d:"راجع المشاركات واعتمدها ثم ارفع فيديوهاتك",icon:"👩‍🏫",ring:"border-[#1697E8]/40 hover:bg-[#1697E8]/10",chip:"bg-[#1697E8]/15 text-sky-200",go:onTeacher},
+              {t:"Administration",ar:"لوحة الإدارة",d:"إنشاء المسابقات والتحكم الكامل بالمنصة",icon:"🛡️",ring:"border-white/15 hover:bg-white/10",chip:"bg-white/10 text-white/70",go:onAdmin},
+            ].map(p=>(
+              <button key={p.t} onClick={p.go} className={cn("group flex w-full items-center gap-3 rounded-2xl border bg-white/[0.03] px-4 py-3.5 text-left transition",p.ring)}>
+                <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xl",p.chip)}>{p.icon}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[12px] font-black leading-tight text-white/90">{p.t}</span>
-                  <span className="block text-[10.5px] font-semibold leading-5 text-white/35" dir="rtl">{p.ar} — {p.d}</span>
+                  <span className="block text-sm font-black leading-tight text-white">{p.t}</span>
+                  <span className="block text-[11px] font-bold leading-5 text-white/40" dir="rtl">{p.ar} — {p.d}</span>
                 </span>
-                <span className="text-white/20 transition group-hover:translate-x-0.5 group-hover:text-white/60">→</span>
+                <span className="text-white/30 transition group-hover:translate-x-1 group-hover:text-white">→</span>
               </button>
             ))}
           </div>
@@ -1276,8 +1225,8 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
 
   if(!selComp){
     return(
-      <div className="relative min-h-screen text-white" style={{background:"linear-gradient(180deg,var(--gwa-bg1,#0d1230),var(--gwa-bg2,#111a45),var(--gwa-bg1,#0d1230))"}}><Bg/>
-        <header className="sticky top-0 z-20 border-b border-white/[0.07] bg-[#0f1535]/70 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
+      <div className="relative min-h-screen bg-[linear-gradient(180deg,#0d1230,#111a45,#0d1230)] text-white"><Bg/>
+        <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4"><Logo s/><div><h2 className="text-lg font-black uppercase italic">Active Competitions</h2><p className="text-sm text-white/40" dir="rtl">المسابقات النشطة</p></div></div>
           <div className="flex gap-3">
             <button onClick={()=>{ if(adminMode) setAdminMode(false); else setAskPw(true); }} className={cn("rounded-full border px-4 py-2.5 text-xs font-black transition",adminMode?"border-emerald-400/40 bg-emerald-500/20 text-emerald-200":"border-white/10 bg-white/5 text-white/70 hover:bg-white/10")}>{adminMode?"✅ Admin mode":"🔒 Admin"}</button>
@@ -1287,7 +1236,7 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
         </header>
         <main className="max-w-7xl mx-auto px-6 py-10">
           <p className="text-center text-white/50 mb-8 text-lg">Select a competition to view all student submissions • اختر مسابقة لمشاهدة جميع المشاركات</p>
-          {active.length===0&&<div className="rounded-3xl border border-white/[0.07] bg-white/[0.03] p-14 text-center"><p className="text-4xl mb-4">🏆</p><p className="text-xl text-white/40">No active competitions • لا توجد مسابقات نشطة</p></div>}
+          {active.length===0&&<div className="rounded-3xl border border-white/10 bg-white/5 p-16 text-center"><p className="text-4xl mb-4">🏆</p><p className="text-xl text-white/40">No active competitions • لا توجد مسابقات نشطة</p></div>}
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {active.map(c=>{
               const compWorksCount=works.filter(w=>w.competitionId===c.id).length;
@@ -1347,8 +1296,8 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
 
   // ── COMPETITION WORKS VIEW (competition selected) ──
   return(
-    <div className="relative min-h-screen text-white" style={{background:"linear-gradient(180deg,var(--gwa-bg1,#0d1230),var(--gwa-bg2,#111a45),var(--gwa-bg1,#0d1230))"}}><Bg/>
-      <header className="sticky top-0 z-20 border-b border-white/[0.07] bg-[#0f1535]/70 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
+    <div className="relative min-h-screen bg-[linear-gradient(180deg,#0d1230,#111a45,#0d1230)] text-white"><Bg/>
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
         <button onClick={()=>{setSelCompId(null);setGradeFilter(null)}} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">← All Competitions</button>
         <div className="flex gap-3">
           <button onClick={onWinners} className="rounded-xl px-4 py-2 text-sm font-black bg-gradient-to-r from-[#FDB51F] to-[#E21455] text-white shadow-lg hover:brightness-110">🏅 Winners</button>
@@ -1386,7 +1335,7 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
       </section>
 
       <main className="max-w-7xl mx-auto px-6 py-10">
-        {compWorks.length===0&&<div className="rounded-3xl border border-white/[0.07] bg-white/[0.03] p-14 text-center"><p className="text-xl text-white/40">{gradeFilter?`No works from ${gradeFilter} yet`:"No works submitted yet"}</p></div>}
+        {compWorks.length===0&&<div className="rounded-3xl border border-white/10 bg-white/5 p-16 text-center"><p className="text-xl text-white/40">{gradeFilter?`No works from ${gradeFilter} yet`:"No works submitted yet"}</p></div>}
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
           {compWorks.map(w=><WorkCard key={w.id} w={w} users={users} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={onPromote}/>)}
         </div>
@@ -1415,7 +1364,7 @@ function ClassBoardPage({cls,users,works,evals,comps,likes,setLikes,setEvals,set
         <div className="mt-6 flex justify-center gap-3"><Pill t="gold">{cls.count} Students</Pill><Pill t="blue">{classWorks.length} Works</Pill></div>
       </section>
       <main className="max-w-7xl mx-auto px-6 py-12">
-        {classWorks.length===0&&<div className="rounded-3xl border border-white/[0.07] bg-white/[0.03] p-14 text-center text-white/40">No works yet • لا توجد أعمال</div>}
+        {classWorks.length===0&&<div className="rounded-3xl border border-white/10 bg-white/5 p-16 text-center text-white/40">No works yet • لا توجد أعمال</div>}
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
           {classWorks.map(w=><WorkCard key={w.id} w={w} users={users} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={onPromote}/>)}
         </div>
@@ -1431,7 +1380,7 @@ function GlobalWorksPage({users,works,evals,comps,likes,setLikes,setEvals,setWor
   const sorted=useMemo(()=>[...works].sort((a,b)=>b.at.localeCompare(a.at)),[works]);
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
-      <header className="sticky top-0 z-20 border-b border-white/[0.07] bg-[#0f1535]/70 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
         <button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white">← Back</button>
         <div className="flex items-center gap-3">
           <Logo s/>
@@ -1492,7 +1441,7 @@ function WinnersPage({comps,works,evals,users,likes,setLikes,certs,onPromote,adm
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
       <div className="pointer-events-none fixed top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-[#FDB51F]/8 blur-[100px] rounded-full"/>
-      <header className="sticky top-0 z-20 border-b border-white/[0.07] bg-[#0f1535]/70 backdrop-blur-xl px-6 py-4 flex justify-between items-center"><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white">← Back</button><Logo s/></header>
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center"><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white">← Back</button><Logo s/></header>
 
       <section className="relative z-10 px-6 py-14 text-center border-b border-white/10 bg-[radial-gradient(ellipse_at_top,rgba(253,181,31,0.15),transparent_45%)]">
         <div className="text-5xl mb-4">🏅</div>
@@ -1503,7 +1452,7 @@ function WinnersPage({comps,works,evals,users,likes,setLikes,certs,onPromote,adm
 
       <main className="max-w-6xl mx-auto px-6 py-12">
         {closedComps.length===0&&(
-          <div className="rounded-3xl border border-white/[0.07] bg-white/[0.03] p-14 text-center">
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-16 text-center">
             <div className="text-5xl mb-4">⏳</div>
             <p className="text-xl text-white/50">No closed competitions yet</p>
           </div>
@@ -1693,9 +1642,9 @@ function StudentLoginPage({users,onBack,onOk}:{users:User[];onBack:()=>void;onOk
 /* ════════════════════════════════════
    7. ADMIN PAGE
    ════════════════════════════════════ */
-function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,theme,setTheme,onBack}:{users:User[];setUsers:React.Dispatch<React.SetStateAction<User[]>>;comps:Comp[];setComps:React.Dispatch<React.SetStateAction<Comp[]>>;archive:ArchiveEntry[];adminPw:string;setAdminPw:(pw:string)=>void;theme:Theme;setTheme:React.Dispatch<React.SetStateAction<Theme>>;onBack:()=>void}){
+function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onBack}:{users:User[];setUsers:React.Dispatch<React.SetStateAction<User[]>>;comps:Comp[];setComps:React.Dispatch<React.SetStateAction<Comp[]>>;archive:ArchiveEntry[];adminPw:string;setAdminPw:(pw:string)=>void;onBack:()=>void}){
   const teachers=useMemo(()=>users.filter(u=>u.role==="teacher"),[users]);
-  const[tab,setTab]=useState<"users"|"export"|"comps"|"archive"|"appearance">("users");
+  const[tab,setTab]=useState<"users"|"export"|"comps"|"archive">("users");
   const fRef=useRef<HTMLInputElement>(null);
   const[name,setName]=useState(""); const[role,setRole]=useState<Role>("student"); const[grade,setGrade]=useState("Grade 6"); const[sec,setSec]=useState("X"); const[tid,setTid]=useState(""); const[umsg,setUmsg]=useState("");
   const[nAr,setNAr]=useState(""); const[nEn,setNEn]=useState(""); const[cGrades,setCGrades]=useState<string[]>(["Grade 6"]); const[rAr,setRAr]=useState(()=>ruleTemplateAr("المسابقة")); const[rEn,setREn]=useState(()=>ruleTemplateEn("Competition")); const[cClose,setCClose]=useState("2026-06-01"); const[cCert,setCCert]=useState("2026-06-15"); const[cmsg,setCmsg]=useState(""); const[impMsg,setImpMsg]=useState("");
@@ -1765,8 +1714,8 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,the
     win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>GWA Cards</title><style>*{box-sizing:border-box;margin:0;padding:0}body{background:#f0f0f0;font-family:Arial,sans-serif;padding:24px}.tb{display:flex;gap:12px;justify-content:center;margin-bottom:24px;padding:16px;background:#1F2E76;border-radius:16px}.tb button{padding:10px 24px;border-radius:999px;border:none;font-weight:700;cursor:pointer;background:#FDB51F;color:#111}.btn-close{background:rgba(255,255,255,0.15);color:#fff}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;max-width:1100px;margin:0 auto}.card{break-inside:avoid}.ci{background:#fff;border:3px solid #5ECEC8;border-radius:20px;padding:20px;min-height:220px}.ch{display:flex;justify-content:space-between;margin-bottom:12px}.hl{display:flex;align-items:center;gap:10px}.logo{width:60px;object-fit:contain;display:block}.logo-placeholder{width:52px;height:40px;background:#1F2E76;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#FDB51F;font-weight:900;font-size:10px}.pen{font-size:14px;font-weight:800;color:#1F2E76}.par{font-size:11px;font-weight:700;margin-top:2px}.qr{width:90px}.div{border:none;border-top:1.5px solid #eee;margin:10px 0}.inf{font-size:13px;line-height:1.8}.badge{display:inline-block;border-radius:999px;padding:4px 14px;font-size:11px;font-weight:800;margin:10px 0}.creds{background:#fafafa;border-radius:10px;padding:10px;border:1px solid #eee;font-size:12px;line-height:1.9}.url{font-size:10px;color:#777;margin-bottom:4px}.hl2{background:#FDB51F;padding:1px 6px;border-radius:4px;font-weight:700}@media print{body{background:#fff;padding:8px}.tb{display:none}}</style></head><body><div class="tb"><button onclick="window.print()">🖨 Print</button><button onclick="window.print()">📄 Download PDF</button><button class="btn-close" onclick="window.close()">✕ Close</button></div><div class="grid">${cards}</div></body></html>`);win.document.close()}
 
   return(
-    <div className="relative min-h-screen text-white" style={{background:"linear-gradient(180deg,var(--gwa-bg1,#0d1230),var(--gwa-bg2,#111a45),var(--gwa-bg1,#0d1230))"}}><Bg/>
-      <header className="sticky top-0 z-20 border-b border-white/[0.07] bg-[#0f1535]/70 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
+    <div className="relative min-h-screen bg-[linear-gradient(180deg,#0d1230,#111a45,#0d1230)] text-white"><Bg/>
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-4"><Logo s/><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#FDB51F]">Administration Portal • بوابة الإدارة</div><h1 className="text-xl font-black">User & Competition Management</h1></div></div>
         <div className="flex gap-3"><button onClick={()=>{setNewPw(adminPw);setShowPwModal(true)}} className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-bold text-white hover:bg-white/10">🔑 Password</button><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-bold text-white hover:bg-white/10">Home</button></div>
       </header>
@@ -1780,7 +1729,7 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,the
       )}
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex flex-wrap gap-2 mb-8 bg-white/5 border border-white/10 rounded-2xl p-1.5 overflow-x-auto">
-          {([["users","👥 Users"],["export","📊 Excel & Cards"],["comps","🏆 Competitions"],["archive","🗄️ Archive • الأرشيف"],["appearance","🎨 Appearance • المظهر"]] as const).map(([k,l])=>(
+          {([["users","👥 Users"],["export","📊 Excel & Cards"],["comps","🏆 Competitions"],["archive","🗄️ Archive • الأرشيف"]] as const).map(([k,l])=>(
             <button key={k} onClick={()=>setTab(k)} className={cn("rounded-xl px-5 py-2.5 text-sm font-black whitespace-nowrap transition",tab===k?"bg-[#FDB51F] text-slate-950":"text-white/50 hover:text-white")}>{l}</button>
           ))}
         </div>
@@ -1873,61 +1822,12 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,the
           </div>
         )}
 
-
-        {tab==="appearance"&&(
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
-              <h2 className="text-xl font-black mb-1 text-white">🎨 Appearance • المظهر</h2>
-              <p className="text-sm text-white/45 mb-5">اختر ألوان الخلفية لتصبح جزءاً من الشاشة — تظهر لكل المستخدمين على كل الأجهزة.</p>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                {[{k:"bg1" as const,l:"Background top • أعلى الخلفية"},{k:"bg2" as const,l:"Background bottom • أسفل الخلفية"},{k:"accent" as const,l:"Accent • اللون المميز"}].map(f=>(
-                  <div key={f.k}>
-                    <FL>{f.l}</FL>
-                    <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/35 p-2">
-                      <input type="color" value={(theme as any)[f.k]} onChange={e=>setTheme(t=>({...t,[f.k]:e.target.value}))} className="h-10 w-12 cursor-pointer rounded-lg border-0 bg-transparent"/>
-                      <span className="font-mono text-xs text-white/60">{(theme as any)[f.k]}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-5 flex flex-wrap gap-2">
-                <button type="button" onClick={()=>setTheme(DEFAULT_THEME)} className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-black text-white/70 hover:bg-white/10">↺ Reset • إعادة الضبط</button>
-              </div>
-            </div>
-            <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
-              <h3 className="text-base font-black mb-3 text-white">Presets • أنماط جاهزة</h3>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {THEME_PRESETS.map(pr=>{
-                  const active=pr.t.bg1.toLowerCase()===String(theme.bg1).toLowerCase();
-                  return(
-                    <button key={pr.name} onClick={()=>setTheme(pr.t)} className={cn("flex items-center gap-3 rounded-2xl border px-3 py-3 text-left transition",active?"border-[#FDB51F]/60 bg-[#FDB51F]/10":"border-white/10 bg-white/5 hover:bg-white/10")}>
-                      <span className="flex h-9 w-14 shrink-0 overflow-hidden rounded-lg ring-1 ring-white/20">
-                        <span className="h-full w-1/2" style={{background:pr.t.bg1}}/>
-                        <span className="h-full w-1/2" style={{background:pr.t.bg2}}/>
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-xs font-black text-white">{pr.name}</span>
-                        <span className="block text-[11px] text-white/40" dir="rtl">{pr.nameAr}</span>
-                      </span>
-                      <span className="ml-auto h-4 w-4 rounded-full ring-1 ring-white/30" style={{background:pr.t.accent}}/>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="mt-4 rounded-2xl border border-white/10 p-4" style={{background:`linear-gradient(180deg,${theme.bg1},${theme.bg2})`}}>
-                <p className="text-sm font-black" style={{color:theme.accent}}>Live preview • معاينة</p>
-                <p className="mt-1 text-xs font-semibold text-white/60">هكذا ستظهر خلفية المنصة.</p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {tab==="archive"&&(
           <div>
             <h2 className="text-2xl font-black mb-2 text-white">🗄️ Competitions Archive • أرشيف المسابقات</h2>
             <p className="text-sm text-white/50 mb-8">Competitions are automatically added here when winners are sent to archive from the Winners page.</p>
             {archive.length===0?(
-              <div className="rounded-3xl border border-white/[0.07] bg-white/[0.03] p-14 text-center"><p className="text-4xl mb-3">🗄️</p><p className="text-white/40">No archived competitions yet</p><p className="text-sm text-white/25 mt-2">Send a competition to archive from the Winners page → Archive button</p></div>
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-16 text-center"><p className="text-4xl mb-3">🗄️</p><p className="text-white/40">No archived competitions yet</p><p className="text-sm text-white/25 mt-2">Send a competition to archive from the Winners page → Archive button</p></div>
             ):(
               <div className="space-y-6">{archive.map(entry=>(
                 <div key={entry.id} className="rounded-[2rem] border border-[#FDB51F]/20 bg-gradient-to-br from-[#FDB51F]/8 to-[#1F2E76]/30 p-6 backdrop-blur-sm">
@@ -1962,7 +1862,7 @@ function TeacherPage({teacher,users,works,comps,evals,setEvals,onBack}:{teacher:
   
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
-      <header className="sticky top-0 z-20 border-b border-white/[0.07] bg-[#0f1535]/70 backdrop-blur-xl px-6 py-4 flex justify-between items-center"><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-sky-300">Teacher Account</div><h1 className="text-xl font-black">{teacher.fullName}</h1></div><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">Back</button></header>
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center"><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-sky-300">Teacher Account</div><h1 className="text-xl font-black">{teacher.fullName}</h1></div><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">Back</button></header>
       <main className="max-w-4xl mx-auto px-6 py-10"><div className="grid gap-4 md:grid-cols-3 mb-10"><Stat l="Students" v={myStudents.length} s="طلابي"/><Stat l="Works" v={myWorks.length} s="الأعمال"/><Stat l="Criteria" v="10" s="عناصر"/></div>
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">{myWorks.map(w=>{const stu=myStudents.find(s=>s.id===w.studentId);const co=comps.find(c=>c.id===w.competitionId);const ev=evals.find(e=>e.workId===w.id);if(!stu)return null;return(
           <article key={w.id} className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden"><SecureVideo path={w.videoUrl} poster={w.thumb} controls className="w-full aspect-video object-cover"/><div className="p-5"><div className="text-[10px] font-black uppercase text-sky-300">{co?.nameEn}</div><h3 className="text-base font-black text-white mt-1">{w.title}</h3><p className="text-sm text-[#FDB51F] mt-1">👤 {stu.fullName}</p><div className="mt-4"><div className="w-full rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-sm font-bold text-white/50 text-center">Use Evaluation Code on Works ⬆</div></div></div></article>);})}</div></main>
@@ -2151,7 +2051,7 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
       {step==="consent"&&selComp&&<ConsentModal student={student} compAr={selComp.nameAr} compEn={selComp.nameEn} onOk={()=>setStep("form")} onNo={()=>setStep("idle")}/>}
-      <header className="sticky top-0 z-20 border-b border-white/[0.07] bg-[#0f1535]/70 backdrop-blur-xl px-6 py-4 flex justify-between items-center"><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#FDB51F]">Student Portal</div>{student.role==="teacher"&&<div className="mt-1 inline-block rounded-full bg-[#FDB51F]/15 border border-[#FDB51F]/30 px-3 py-1 text-[10px] font-black text-[#FFE29A]">👩‍🏫 Teacher upload mode — uploads need another teacher's approval</div>}<h1 className="text-xl font-black">{student.fullName}</h1><p className="text-sm text-white/50">{student.grade} • {student.section}</p></div><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">Back</button></header>
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center"><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#FDB51F]">Student Portal</div>{student.role==="teacher"&&<div className="mt-1 inline-block rounded-full bg-[#FDB51F]/15 border border-[#FDB51F]/30 px-3 py-1 text-[10px] font-black text-[#FFE29A]">👩‍🏫 Teacher upload mode — uploads need another teacher's approval</div>}<h1 className="text-xl font-black">{student.fullName}</h1><p className="text-sm text-white/50">{student.grade} • {student.section}</p></div><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/10">Back</button></header>
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex flex-wrap gap-2 mb-8 bg-white/5 border border-white/10 rounded-2xl p-1.5">
           <button onClick={()=>setSTab("participate")} className={cn("rounded-xl px-5 py-3 text-sm font-black",sTab==="participate"?"bg-[#FDB51F] text-slate-950":"text-white/50")}>🎓 Participate</button>
@@ -2173,7 +2073,7 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
             {step==="form"&&(<form onSubmit={submit} className="space-y-5"><div className="flex items-center gap-3 mb-2"><button type="button" onClick={()=>setStep("idle")} className="text-white/50 text-xs">← Back</button><p className="text-xs text-emerald-300 font-bold">✅ Consent Accepted</p></div><div><FL>Title</FL><Inp value={title} onChange={e=>setTitle(e.target.value)} placeholder="Work title"/></div><div><FL>📹 Upload Video</FL><label className={cn("flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed p-6 cursor-pointer transition",vidFile?"border-emerald-400/40 bg-emerald-500/5":"border-white/10 bg-white/5 hover:border-white/25")}><input type="file" accept="video/mp4,video/quicktime,video/*" onChange={onVid} className="hidden"/>{vidFile?(<><span className="text-3xl">🎬</span><p className="font-black text-emerald-300">{vidFile.name}</p><video src={vidUrl} controls className="w-full max-h-28 rounded-xl mt-2"/></>):(<><span className="text-3xl">📹</span><p className="text-sm font-black text-white">Click to select</p><p className="text-xs text-white/40">MP4, MOV, AVI • ⏱ Max 3 minutes • 📦 Max 50 MB</p></>)}</label></div>{upl&&<div className="rounded-2xl border border-sky-400/20 bg-sky-500/10 p-5 text-center animate-pulse"><div className="flex items-center justify-center gap-3 text-sky-200"><span className="text-xl">📹</span><span className="text-sm font-black uppercase tracking-widest">Uploading Video...</span></div><p className="text-[10px] text-white/40 mt-1 uppercase font-bold tracking-tighter">Please do not close the browser</p></div>}<button type="submit" disabled={upl} className={cn("w-full rounded-2xl px-5 py-4 text-sm font-black shadow-lg",upl?"cursor-not-allowed bg-white/10 text-white/30":"bg-[#FDB51F] text-slate-950 hover:bg-[#F7C84A]")}>{upl?`${prog}%...`:"🚀 Submit Work"}</button></form>)}
           </div></div>
         )}
-        {sTab==="submissions"&&(<div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">{myWorks.length===0&&<div className="md:col-span-3 rounded-3xl border border-white/10 bg-white/5 p-12 text-center text-white/40">No submissions yet</div>}{myWorks.map(w=>{const ev=evals.find(e=>e.workId===w.id);const co=comps.find(c=>c.id===w.competitionId);return(<article key={w.id} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] overflow-hidden"><SecureVideo path={w.videoUrl} poster={w.thumb} controls className="w-full aspect-video object-cover"/><div className="p-4"><div className="text-[10px] font-black uppercase text-sky-300">{co?.nameEn}</div><h3 className="text-base font-black text-white mt-1">{w.title}</h3><div className="mt-3 flex flex-wrap gap-2"><StatusPill w={w}/>{ev?<Pill t="green">✅ Score: {tot(ev.scores)}/100</Pill>:null}</div>{!isApproved(w)&&<p className="mt-2 text-[11px] leading-5 text-white/40" dir="rtl">هذه معاينة خاصة لك فقط. لن يظهر الفيديو للجميع حتى يعتمده أحد المعلمين.</p>}</div></article>);})}</div>)}
+        {sTab==="submissions"&&(<div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">{myWorks.length===0&&<div className="md:col-span-3 rounded-3xl border border-white/10 bg-white/5 p-12 text-center text-white/40">No submissions yet</div>}{myWorks.map(w=>{const ev=evals.find(e=>e.workId===w.id);const co=comps.find(c=>c.id===w.competitionId);return(<article key={w.id} className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden"><SecureVideo path={w.videoUrl} poster={w.thumb} controls className="w-full aspect-video object-cover"/><div className="p-4"><div className="text-[10px] font-black uppercase text-sky-300">{co?.nameEn}</div><h3 className="text-base font-black text-white mt-1">{w.title}</h3><div className="mt-3 flex flex-wrap gap-2"><StatusPill w={w}/>{ev?<Pill t="green">✅ Score: {tot(ev.scores)}/100</Pill>:null}</div>{!isApproved(w)&&<p className="mt-2 text-[11px] leading-5 text-white/40" dir="rtl">هذه معاينة خاصة لك فقط. لن يظهر الفيديو للجميع حتى يعتمده أحد المعلمين.</p>}</div></article>);})}</div>)}
         {sTab==="certs"&&(<div className="space-y-6">{myCerts.length===0&&<div className="rounded-3xl border border-white/10 bg-white/5 p-12 text-center"><p className="text-4xl mb-3">📜</p><p className="text-white/40">No certificates yet.</p></div>}{myCerts.map(cert=><article key={cert.id} className="rounded-3xl border border-[#FDB51F]/30 bg-gradient-to-r from-[#FDB51F]/10 to-[#0d1230] p-6 flex items-center gap-5 justify-between flex-wrap"><div className="flex items-center gap-4"><div className="text-4xl">{MEDALS[cert.rank-1]||"🏅"}</div><div><h3 className="text-xl font-black text-white">{cert.compName}</h3><div className="flex gap-2 mt-2"><Pill t="gold">Rank #{cert.rank}</Pill><Pill t="green">Score: {cert.score}/100</Pill><Pill t="blue">{cert.grade}</Pill></div></div></div><button onClick={()=>printCert(cert)} className="bg-[#FDB51F] text-slate-950 px-5 py-3 rounded-2xl font-black">Download PDF</button></article>)}</div>)}
       </main>
     </div>
