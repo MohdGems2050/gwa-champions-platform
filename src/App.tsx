@@ -8,7 +8,7 @@ import { uploadVideo, deleteVideo } from "./lib/videoUpload";
 type Role = "teacher" | "student";
 type View = "home"|"showcase"|"classBoard"|"allWorks"|"winners"|"adminLogin"|"admin"|"teacherLogin"|"teacher"|"teacherPortal"|"studentLogin"|"student";
 type User = { id:string; fullName:string; role:Role; grade:string; section:string; teacherId?:string; username:string; password:string; createdAt:string; active:boolean };
-type Comp = { id:string; nameAr:string; nameEn:string; logoUrl:string; grades:string[]; rulesAr:string; rulesEn:string; closingDate:string; certDate:string; started:boolean; archived:boolean; criteria:string[]; evalCode:string };
+type Comp = { id:string; nameAr:string; nameEn:string; logoUrl:string; grades:string[]; rulesAr:string; rulesEn:string; startDate:string; closingDate:string; certDate:string; started:boolean; archived:boolean; criteria:string[]; evalCode:string };
 type WorkStatus = "pending" | "approved";
 type Work = { id:string; competitionId:string; studentId:string; title:string; desc:string; videoUrl:string; thumb:string; at:string; status?:WorkStatus; approvedBy?:string; approvedAt?:string };
 type Ev = { id:string; workId:string; scores:number[]; at:string; approved?:boolean };
@@ -143,11 +143,11 @@ const seedU: User[] = [
 ];
 
 const seedC:Comp[]=[
-  {id:"cq1",nameEn:"Holy Quran Recitation Competition",nameAr:"مسابقة تلاوة القرآن الكريم",logoUrl:"/gems-logo.png",grades:["Grade 4","Grade 5","Grade 6","Grade 7","Grade 8"],rulesAr:"١- يتلو الطالب آيات من القرآن الكريم\n٢- يُقيّم على أساس التجويد والأداء\n٣- مدة الفيديو ٣ دقائق\n٤- الالتزام بأحكام التلاوة",rulesEn:"1- Student recites verses from the Holy Quran\n2- Evaluated on Tajweed and delivery\n3- Video duration: 3 minutes\n4- Adherence to recitation rules",closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[0].criteria,evalCode:"QURAN1"},
-  {id:"ct1",nameEn:"Arabic Big Talk",nameAr:"مسابقة التحدث بالعربية",logoUrl:"/gems-logo.png",grades:["Grade 4","Grade 5","Grade 6","Grade 7","Grade 8"],rulesAr:"١- يتحدث الطالب بالعربية الفصحى لمدة ٢-٣ دقائق\n٢- يُقيّم على الطلاقة والنطق ولغة الجسد\n٣- الموضوع حر\n٤- مفتوحة للطلاب العرب وغير العرب",rulesEn:"1- Student speaks in Arabic for 2-3 minutes\n2- Evaluated on fluency, pronunciation & body language\n3- Free topic choice\n4- Open to Arab and non-Arab students",closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[1].criteria,evalCode:"TALK1"},
-  {id:"cp1",nameEn:"Classical Arabic Poetry Recitation",nameAr:"مسابقة الشعر العربي الأصيل",logoUrl:"/gems-logo.png",grades:["Grade 5","Grade 6","Grade 7","Grade 8","Grade 9"],rulesAr:"١- يُلقي الطالب قصيدة من الشعر العربي الكلاسيكي\n٢- التقييم على الأداء والإيقاع والتعبير\n٣- مدة الإلقاء ٢-٤ دقائق\n٤- يُفضل الحفظ الكامل",rulesEn:"1- Student recites a classical Arabic poem\n2- Evaluated on delivery, rhythm & expression\n3- Duration: 2-4 minutes\n4- Full memorization preferred",closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[3].criteria,evalCode:"POETRY1"},
-  {id:"cr1",nameEn:"Arabic Loud Reading Competition",nameAr:"مسابقة القراءة الجهرية",logoUrl:"/gems-logo.png",grades:["Grade 3","Grade 4","Grade 5","Grade 6","Grade 7"],rulesAr:"١- يقرأ الطالب نصاً عربياً قراءة جهرية واضحة\n٢- التقييم على النطق والطلاقة والفهم\n٣- مدة القراءة ٢-٣ دقائق\n٤- النص يُختار من الأدب العربي",rulesEn:"1- Student reads an Arabic text aloud clearly\n2- Evaluated on pronunciation, fluency & comprehension\n3- Duration: 2-3 minutes\n4- Text selected from Arabic literature",closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[4].criteria,evalCode:"READ1"},
-  {id:"cu1",nameEn:"UAE: Land of Goodness",nameAr:"مسابقة الاجتماعيات: الإمارات وطن الخير",logoUrl:"/gems-logo.png",grades:["Grade 4","Grade 5","Grade 6","Grade 7","Grade 8"],rulesAr:"١- يقدم الطالب مشروعاً عن الإمارات العربية المتحدة\n٢- يمكن أن يكون فيديو أو عرض رقمي\n٣- يركز على التاريخ أو الجغرافيا أو القيم الوطنية\n٤- الأصالة والإبداع أساس التقييم",rulesEn:"1- Student presents a project about the UAE\n2- Can be a video or digital presentation\n3- Focus on history, geography or national values\n4- Originality and creativity are key",closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[8].criteria,evalCode:"UAE1"},
+  {id:"cq1",nameEn:"Holy Quran Recitation Competition",nameAr:"مسابقة تلاوة القرآن الكريم",logoUrl:"/gems-logo.png",grades:["Grade 4","Grade 5","Grade 6","Grade 7","Grade 8"],rulesAr:"١- يتلو الطالب آيات من القرآن الكريم\n٢- يُقيّم على أساس التجويد والأداء\n٣- مدة الفيديو ٣ دقائق\n٤- الالتزام بأحكام التلاوة",rulesEn:"1- Student recites verses from the Holy Quran\n2- Evaluated on Tajweed and delivery\n3- Video duration: 3 minutes\n4- Adherence to recitation rules",startDate:"2026-09-01",closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[0].criteria,evalCode:"QURAN1"},
+  {id:"ct1",nameEn:"Arabic Big Talk",nameAr:"مسابقة التحدث بالعربية",logoUrl:"/gems-logo.png",grades:["Grade 4","Grade 5","Grade 6","Grade 7","Grade 8"],rulesAr:"١- يتحدث الطالب بالعربية الفصحى لمدة ٢-٣ دقائق\n٢- يُقيّم على الطلاقة والنطق ولغة الجسد\n٣- الموضوع حر\n٤- مفتوحة للطلاب العرب وغير العرب",rulesEn:"1- Student speaks in Arabic for 2-3 minutes\n2- Evaluated on fluency, pronunciation & body language\n3- Free topic choice\n4- Open to Arab and non-Arab students",startDate:"2026-09-01",closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[1].criteria,evalCode:"TALK1"},
+  {id:"cp1",nameEn:"Classical Arabic Poetry Recitation",nameAr:"مسابقة الشعر العربي الأصيل",logoUrl:"/gems-logo.png",grades:["Grade 5","Grade 6","Grade 7","Grade 8","Grade 9"],rulesAr:"١- يُلقي الطالب قصيدة من الشعر العربي الكلاسيكي\n٢- التقييم على الأداء والإيقاع والتعبير\n٣- مدة الإلقاء ٢-٤ دقائق\n٤- يُفضل الحفظ الكامل",rulesEn:"1- Student recites a classical Arabic poem\n2- Evaluated on delivery, rhythm & expression\n3- Duration: 2-4 minutes\n4- Full memorization preferred",startDate:"2026-09-01",closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[3].criteria,evalCode:"POETRY1"},
+  {id:"cr1",nameEn:"Arabic Loud Reading Competition",nameAr:"مسابقة القراءة الجهرية",logoUrl:"/gems-logo.png",grades:["Grade 3","Grade 4","Grade 5","Grade 6","Grade 7"],rulesAr:"١- يقرأ الطالب نصاً عربياً قراءة جهرية واضحة\n٢- التقييم على النطق والطلاقة والفهم\n٣- مدة القراءة ٢-٣ دقائق\n٤- النص يُختار من الأدب العربي",rulesEn:"1- Student reads an Arabic text aloud clearly\n2- Evaluated on pronunciation, fluency & comprehension\n3- Duration: 2-3 minutes\n4- Text selected from Arabic literature",startDate:"2026-09-01",closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[4].criteria,evalCode:"READ1"},
+  {id:"cu1",nameEn:"UAE: Land of Goodness",nameAr:"مسابقة الاجتماعيات: الإمارات وطن الخير",logoUrl:"/gems-logo.png",grades:["Grade 4","Grade 5","Grade 6","Grade 7","Grade 8"],rulesAr:"١- يقدم الطالب مشروعاً عن الإمارات العربية المتحدة\n٢- يمكن أن يكون فيديو أو عرض رقمي\n٣- يركز على التاريخ أو الجغرافيا أو القيم الوطنية\n٤- الأصالة والإبداع أساس التقييم",rulesEn:"1- Student presents a project about the UAE\n2- Can be a video or digital presentation\n3- Focus on history, geography or national values\n4- Originality and creativity are key",startDate:"2026-09-01",closingDate:"2027-02-01",certDate:"2027-02-15",started:true,archived:false,criteria:COMP_PRESETS[8].criteria,evalCode:"UAE1"},
 ];
 
 const seedW:Work[]=[];
@@ -213,7 +213,7 @@ function sv(k:string,v:any){
           comp_name:JSON.stringify({
             nameEn:c.nameEn||"", nameAr:c.nameAr||"", logoUrl:c.logoUrl||"/gems-logo.png",
             grades:Array.isArray(c.grades)?c.grades:[], rulesAr:c.rulesAr||"", rulesEn:c.rulesEn||"",
-            closingDate:c.closingDate||"", certDate:c.certDate||"",
+            startDate:c.startDate||"", closingDate:c.closingDate||"", certDate:c.certDate||"",
             started:c.started!==false, archived:c.archived===true,
             criteria:Array.isArray(c.criteria)?c.criteria:[], evalCode:c.evalCode||""
           }),
@@ -750,14 +750,17 @@ function AdminUnlockModal({adminPw,onUnlock,onClose}:{adminPw:string;onUnlock:()
 function CompEditModal({comp,onClose,onSave}:{comp:Comp;onClose:()=>void;onSave:(patch:Partial<Comp>)=>void}){
   const[nEn,setNEn]=useState(comp.nameEn);
   const[nAr,setNAr]=useState(comp.nameAr);
+  const[cStart,setCStart]=useState(comp.startDate||"");
   const[cClose,setCClose]=useState(comp.closingDate||"");
   const[cCert,setCCert]=useState(comp.certDate||"");
   const[err,setErr]=useState("");
   function save(e:React.FormEvent){
     e.preventDefault();
     if(!nEn.trim()||!nAr.trim()){setErr("أدخل الاسم باللغتين • Enter both names");return}
+    if(cStart&&cClose&&cClose<cStart){setErr("تاريخ الإغلاق يجب أن يكون بعد تاريخ البدء • Closing date must follow the start date");return}
     if(cClose&&cCert&&cCert<cClose){setErr("تاريخ الشهادات يجب أن يكون بعد الإغلاق • Certificates date must follow the closing date");return}
-    onSave({nameEn:nEn.trim(),nameAr:nAr.trim(),closingDate:cClose,certDate:cCert});
+    const today=new Date().toISOString().slice(0,10);
+    onSave({nameEn:nEn.trim(),nameAr:nAr.trim(),startDate:cStart,closingDate:cClose,certDate:cCert,started:!cStart||cStart<=today});
     onClose();
   }
   return(
@@ -772,10 +775,12 @@ function CompEditModal({comp,onClose,onSave}:{comp:Comp;onClose:()=>void;onSave:
           <form onSubmit={save} className="space-y-4">
             <div><FL>Name (English)</FL><Inp value={nEn} onChange={e=>setNEn(e.target.value)}/></div>
             <div><FL>Name (Arabic) • الاسم بالعربية</FL><Inp value={nAr} onChange={e=>setNAr(e.target.value)} dir="rtl"/></div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div><FL>Closing Date • تاريخ الإغلاق</FL><Inp type="date" value={cClose} onChange={e=>setCClose(e.target.value)}/></div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div><FL>Start Date • تاريخ البدء</FL><Inp type="date" value={cStart} onChange={e=>setCStart(e.target.value)}/></div>
+              <div><FL>Close Date • تاريخ الإغلاق</FL><Inp type="date" value={cClose} onChange={e=>setCClose(e.target.value)}/></div>
               <div><FL>Certs Date • تاريخ الشهادات</FL><Inp type="date" value={cCert} onChange={e=>setCCert(e.target.value)}/></div>
             </div>
+            <p className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-bold leading-5 text-white/45">إن كان تاريخ البدء في المستقبل تظهر المسابقة كقادمة ولا تُدرج في المسابقات النشطة حتى يحين موعدها.</p>
             {err&&<div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-200">{err}</div>}
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3.5 text-sm font-black text-white/70 hover:bg-white/10">Cancel</button>
@@ -1159,7 +1164,7 @@ export default function App(){
             if(missing.length===0) return prev;
             const placeholders:Comp[]=Array.from(new Set(missing.map((w:any)=>String(w.competitionId)))).map(id=>({
               id, nameEn:"Competition", nameAr:"مسابقة", logoUrl:"/gems-logo.png",
-              grades:[], rulesAr:"", rulesEn:"", closingDate:"", certDate:"",
+              grades:[], rulesAr:"", rulesEn:"", startDate:"", closingDate:"", certDate:"",
               started:true, archived:false, criteria:DEFAULT_CRITERIA, evalCode:""
             }));
             const next=[...prev,...placeholders];
@@ -1181,7 +1186,7 @@ export default function App(){
                 logoUrl:meta.logoUrl||"/gems-logo.png",
                 grades:Array.isArray(meta.grades)?meta.grades:[],
                 rulesAr:meta.rulesAr||"", rulesEn:meta.rulesEn||"",
-                closingDate:meta.closingDate||"", certDate:meta.certDate||"",
+                startDate:meta.startDate||"", closingDate:meta.closingDate||"", certDate:meta.certDate||"",
                 started:meta.started!==false, archived:meta.archived===true,
                 criteria:Array.isArray(meta.criteria)&&meta.criteria.length?meta.criteria:DEFAULT_CRITERIA,
                 evalCode:meta.evalCode||""
@@ -1207,7 +1212,7 @@ export default function App(){
               logoUrl:c.logo_url||"/gems-logo.png",
               grades:Array.isArray(c.grades)?c.grades:[],
               rulesAr:c.rules_ar||"", rulesEn:c.rules_en||"",
-              closingDate:c.closing_date||"", certDate:c.cert_date||"",
+              startDate:c.start_date||"", closingDate:c.closing_date||"", certDate:c.cert_date||"",
               started:c.started!==false, archived:c.archived===true,
               criteria:Array.isArray(c.criteria)&&c.criteria.length?c.criteria:DEFAULT_CRITERIA,
               evalCode:c.eval_code||""
@@ -1309,7 +1314,25 @@ export default function App(){
   if(view==="winners")return<WinnersPage comps={comps} works={works} evals={evals} users={users} likes={likes} setLikes={setLikes} certs={certs} onPromote={promoteToCertificate} adminPw={adminPw} onArchive={handleArchive} onBack={()=>setView("showcase")}/>;
   if(view==="classBoard"&&selClass)return<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/>;
   if(view==="adminLogin")return<AdminLoginPage adminPw={adminPw} onBack={()=>setView("home")} onOk={()=>setView("admin")}/>;
-  if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw} onBack={()=>setView("home")} />;
+  if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw}
+      onDeleteCompetition={c=>{
+        const doomed=works.filter(w=>w.competitionId===c.id).map(w=>w.id);
+        setWorks(p=>p.filter(w=>w.competitionId!==c.id));
+        setEvals(p=>p.filter(e=>!doomed.includes(e.workId)));
+        setCerts(p=>p.filter(x=>x.compId!==c.id));
+        setArchive(p=>p.filter(a=>a.compId!==c.id));
+        setComps(p=>p.filter(x=>x.id!==c.id));
+        try{
+          if(isSupabaseConfigured){
+            if(doomed.length>0){
+              supabase.from("evaluations").delete().in("work_id",doomed).then(()=>{});
+              supabase.from("evaluations").delete().in("id",doomed.map(id=>"__approval__"+id)).then(()=>{});
+            }
+            supabase.from("works_cloud").delete().eq("competition_id",c.id).then(()=>{});
+          }
+        }catch{}
+      }}
+      onBack={()=>setView("home")} />;
   if(view==="studentLogin")return<StudentLoginPage users={users} onBack={()=>setView("home")} onOk={s=>{ if(s.role==="teacher"){setCurrentTeacher(s);setCurrentStudent(s);setView("teacherPortal");} else {setCurrentStudent(s);setView("student");} }}/>;
   if(view==="teacherLogin")return<TeacherLoginPage users={users} onBack={()=>setView("home")} onOk={t=>{setCurrentTeacher(t);setCurrentStudent(t);setView("teacherPortal")}}/>;
   if(view==="teacherPortal"&&currentTeacher)return<TeacherPortalPage teacher={currentTeacher} users={users} works={works} comps={comps} setWorks={setWorks} onUpload={()=>{setCurrentStudent(currentTeacher);setView("student")}} onBack={()=>{setCurrentTeacher(null);setCurrentStudent(null);setView("home")}}/>;
@@ -2142,12 +2165,14 @@ function TeacherClassesModal({teacher,onSave,onClose}:{teacher:User;onSave:(list
   );
 }
 
-function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onBack}:{users:User[];setUsers:React.Dispatch<React.SetStateAction<User[]>>;comps:Comp[];setComps:React.Dispatch<React.SetStateAction<Comp[]>>;archive:ArchiveEntry[];adminPw:string;setAdminPw:(pw:string)=>void;onBack:()=>void}){
+function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onDeleteCompetition,onBack}:{users:User[];setUsers:React.Dispatch<React.SetStateAction<User[]>>;comps:Comp[];setComps:React.Dispatch<React.SetStateAction<Comp[]>>;archive:ArchiveEntry[];adminPw:string;setAdminPw:(pw:string)=>void;onDeleteCompetition:(c:Comp)=>void;onBack:()=>void}){
   const teachers=useMemo(()=>users.filter(u=>u.role==="teacher"),[users]);
   const[tab,setTab]=useState<"users"|"export"|"comps"|"archive"|"security">("users");
+  const[admEditComp,setAdmEditComp]=useState<Comp|null>(null);
+  const[admDelComp,setAdmDelComp]=useState<Comp|null>(null);
   const fRef=useRef<HTMLInputElement>(null);
   const[name,setName]=useState(""); const[role,setRole]=useState<Role>("student"); const[grade,setGrade]=useState("Grade 6"); const[sec,setSec]=useState("X"); const[tid,setTid]=useState(""); const[umsg,setUmsg]=useState("");
-  const[nAr,setNAr]=useState(""); const[nEn,setNEn]=useState(""); const[cGrades,setCGrades]=useState<string[]>(["Grade 6"]); const[rAr,setRAr]=useState(()=>ruleTemplateAr("المسابقة")); const[rEn,setREn]=useState(()=>ruleTemplateEn("Competition")); const[cClose,setCClose]=useState("2026-06-01"); const[cCert,setCCert]=useState("2026-06-15"); const[cmsg,setCmsg]=useState(""); const[impMsg,setImpMsg]=useState("");
+  const[nAr,setNAr]=useState(""); const[nEn,setNEn]=useState(""); const[cGrades,setCGrades]=useState<string[]>(["Grade 6"]); const[rAr,setRAr]=useState(()=>ruleTemplateAr("المسابقة")); const[rEn,setREn]=useState(()=>ruleTemplateEn("Competition")); const[cStart,setCStart]=useState(new Date().toISOString().slice(0,10)); const[cClose,setCClose]=useState("2026-06-01"); const[cCert,setCCert]=useState("2026-06-15"); const[cmsg,setCmsg]=useState(""); const[impMsg,setImpMsg]=useState("");
   const[compCriteria,setCompCriteria]=useState<string[]>([...DEFAULT_CRITERIA]);
   const[selPreset,setSelPreset]=useState<string>("");
   const[editClassesFor,setEditClassesFor]=useState<User|null>(null);
@@ -2199,7 +2224,7 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
     const t=rulesForPreset(selPreset&&selPreset!=="custom"?Number(selPreset):undefined,nAr,nEn);
     const finalAr=(rAr.trim()||t.ar);
     const finalEn=(rEn.trim()||t.en);
-    setComps(p=>[{id:mid("c"),nameAr:nAr,nameEn:nEn,logoUrl:"/gems-logo.png",grades:cGrades,rulesAr:finalAr,rulesEn:finalEn,closingDate:cClose,certDate:cCert,started:true,archived:false,criteria:compCriteria,evalCode:code},...p]);
+    setComps(p=>[{id:mid("c"),nameAr:nAr,nameEn:nEn,logoUrl:"/gems-logo.png",grades:cGrades,rulesAr:finalAr,rulesEn:finalEn,startDate:cStart,closingDate:cClose,certDate:cCert,started:!cStart||cStart<=new Date().toISOString().slice(0,10),archived:false,criteria:compCriteria,evalCode:code},...p]);
     setCmsg(`✅ Created • Evaluation Code: ${code}`);
     setNAr("");setNEn("");setCompCriteria([...DEFAULT_CRITERIA]);setRAr(ruleTemplateAr("المسابقة"));setREn(ruleTemplateEn("Competition"))}
   function findCol(h:string[],p:string[]){for(let i=0;i<h.length;i++){const s=h[i].toLowerCase().replace(/[\s_\-().]+/g,"");for(const x of p)if(s===x||s.includes(x))return i}return -1}
@@ -2333,7 +2358,7 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
                 </div>
                 <div><FL>Rules (Arabic) • قواعد المسابقة</FL><TA rows={8} value={rAr} onChange={e=>setRAr(e.target.value)} dir="rtl"/></div>
                 <div><FL>Rules (English)</FL><TA rows={8} value={rEn} onChange={e=>setREn(e.target.value)}/></div>
-                <div className="grid grid-cols-2 gap-3"><div><FL>Closing Date</FL><Inp type="date" value={cClose} onChange={e=>setCClose(e.target.value)}/></div><div><FL>Certs Date</FL><Inp type="date" value={cCert} onChange={e=>setCCert(e.target.value)}/></div></div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3"><div><FL>Start Date • البدء</FL><Inp type="date" value={cStart} onChange={e=>setCStart(e.target.value)}/></div><div><FL>Close Date • الإغلاق</FL><Inp type="date" value={cClose} onChange={e=>setCClose(e.target.value)}/></div><div><FL>Certs Date • الشهادات</FL><Inp type="date" value={cCert} onChange={e=>setCCert(e.target.value)}/></div></div>
                 {cmsg&&<div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">{cmsg}</div>}
                 <button type="submit" className="w-full rounded-2xl bg-[#FDB51F] text-slate-950 font-black py-3.5 hover:bg-[#F7C84A] shadow-lg">Save Competition 🏆</button>
               </form>
@@ -2348,6 +2373,10 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
                     <span className="text-xs text-white/40">🔐 Eval Code:</span>
                     <span className="text-sm font-black text-[#FDB51F] tracking-[0.2em]">{c.evalCode||"—"}</span>
                     <button onClick={()=>{const nc=prompt("New evaluation code:",c.evalCode||"");if(nc!==null)setComps(p=>p.map(x=>x.id===c.id?{...x,evalCode:nc.toUpperCase()}:x))}} className="text-xs text-sky-300 hover:text-sky-200 font-bold ml-2">Change</button>
+                    <div className="ml-auto flex gap-2">
+                      <button onClick={()=>setAdmEditComp(c)} className="rounded-full border border-sky-400/30 bg-sky-500/20 px-3 py-1.5 text-[11px] font-black text-sky-200 hover:bg-sky-500/30">✏️ تعديل</button>
+                      <button onClick={()=>setAdmDelComp(c)} className="rounded-full border border-rose-400/30 bg-rose-600/20 px-3 py-1.5 text-[11px] font-black text-rose-200 hover:bg-rose-600/30">🗑 حذف</button>
+                    </div>
                   </div>
                 </div>
               ))}</div>
@@ -2415,6 +2444,9 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
             </div>
           </div>
         )}
+
+        {admEditComp&&<CompEditModal comp={admEditComp} onClose={()=>setAdmEditComp(null)} onSave={patch=>{const id=admEditComp.id;setComps(p=>p.map(c=>c.id===id?{...c,...patch}:c));}}/>}
+        {admDelComp&&<CompDeleteModal comp={admDelComp} adminPw={adminPw} worksCount={0} onClose={()=>setAdmDelComp(null)} onConfirm={()=>{onDeleteCompetition(admDelComp);setAdmDelComp(null);}}/>}
 
         {tab==="archive"&&(
           <div>
