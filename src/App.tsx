@@ -316,8 +316,8 @@ function classesText(u:any){ const list=decodeClasses(u); return list.length?lis
 
 /* ═══════ ADMIN RECOVERY ═══════ */
 const ADMIN_RECOVERY_CODE = "MohdRoshdi@2050";
-const ADMIN_EMAIL = "m.roshdi_gwa@gemsedu.com";        /* primary • البريد الأساسي */
-const ADMIN_EMAIL_ALT = "mohdarabichod3@gmail.com";   /* alternate • بريد بديل مقبول */
+const ADMIN_EMAIL = "mohdarabichod3@gmail.com";       /* primary • البريد الأساسي (حساب Resend) */
+const ADMIN_EMAIL_ALT = "m.roshdi_gwa@gemsedu.com";   /* alternate • بريد المدرسة */
 const ADMIN_EMAILS = [ADMIN_EMAIL, ADMIN_EMAIL_ALT];
 const isAdminEmail = (value:string)=> ADMIN_EMAILS.includes(String(value||"").trim().toLowerCase());
 
@@ -1750,6 +1750,7 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
   const[attempts,setAttempts]=useState(0); const[revealed,setRevealed]=useState(false); const[busy,setBusy]=useState(false);
   const MAX_TRIES=5;
   const[mailStatus,setMailStatus]=useState<"idle"|"sending"|"sent"|"manual"|"failed"|"blocked">("idle");
+  const[sentTo,setSentTo]=useState("");
 
   function sub(e:React.FormEvent){e.preventDefault(); const t=pw.trim(); if(t===adminPw){setErr("");onOk()}else{setErr("Incorrect password");setPw("")}}
 
@@ -1778,6 +1779,7 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
       });
       const data=await res.json().catch(()=>({}));
       if(res.ok && data?.ok){
+        setSentTo(toEmail);
         setMailStatus("sent");
         return;
       }
@@ -1832,7 +1834,7 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
         </form>
 
         <div className="mt-4 text-center">
-          <button type="button" onClick={()=>{setForgot(true);setFpErr("");setFpOk(false);setEmail("");setMailStatus("idle");}} className="text-[12px] font-bold text-white/40 underline decoration-dotted transition hover:text-[#FFE29A]">Forgot password? • نسيت كلمة المرور</button>
+          <button type="button" onClick={()=>{setForgot(true);setFpErr("");setFpOk(false);setEmail("");setMailStatus("idle");setSentTo("");}} className="text-[12px] font-bold text-white/40 underline decoration-dotted transition hover:text-[#FFE29A]">Forgot password? • نسيت كلمة المرور</button>
         </div>
       </div>
 
@@ -1889,7 +1891,7 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
                       <p className="text-2xl">✅</p>
                       <p className="mt-2 text-sm font-black text-emerald-200">تم إرسال البيانات فعلياً</p>
                       <p className="mt-1 text-[12px] leading-6 text-emerald-100/80" dir="rtl">أُرسلت كلمة المرور ورمز الاستعادة إلى بريد الإدارة المسجّل. تحقّق من صندوق الوارد (ومجلد الرسائل غير المرغوبة).</p>
-                      <p className="mt-1 text-[12px] font-black text-white" dir="ltr">{ADMIN_EMAIL}</p>
+                      <p className="mt-1 text-[12px] font-black text-white" dir="ltr">{sentTo || ADMIN_EMAIL}</p>
                     </div>
                   )}
                   {mailStatus==="blocked"&&(
