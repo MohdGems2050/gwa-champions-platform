@@ -1746,7 +1746,7 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
   const[email,setEmail]=useState(""); const[fpErr,setFpErr]=useState(""); const[fpOk,setFpOk]=useState(false);
   const[attempts,setAttempts]=useState(0); const[revealed,setRevealed]=useState(false); const[busy,setBusy]=useState(false);
   const MAX_TRIES=5;
-  const[mailStatus,setMailStatus]=useState<"idle"|"sending"|"sent"|"manual">("idle");
+  const[mailStatus,setMailStatus]=useState<"idle"|"sending"|"sent"|"manual"|"failed"|"blocked">("idle");
 
   function sub(e:React.FormEvent){e.preventDefault(); const t=pw.trim(); if(t===adminPw){setErr("");onOk()}else{setErr("Incorrect password");setPw("")}}
 
@@ -1778,6 +1778,8 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
         setMailStatus("sent");
         return;
       }
+      if(data?.code==="recipient-not-allowed"){ setMailStatus("blocked"); return; }
+      if(res.status===502 || res.status===403){ setMailStatus("failed"); return; }
     }catch{}
     /* no mail provider configured (or network issue) → honest manual fallback */
     setMailStatus("manual");
@@ -1882,6 +1884,23 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
                       <p className="mt-2 text-sm font-black text-emerald-200">تم إرسال البيانات فعلياً</p>
                       <p className="mt-1 text-[12px] leading-6 text-emerald-100/80" dir="rtl">أُرسلت كلمة المرور ورمز الاستعادة إلى بريد الإدارة المسجّل. تحقّق من صندوق الوارد (ومجلد الرسائل غير المرغوبة).</p>
                       <p className="mt-1 text-[12px] font-black text-white" dir="ltr">{ADMIN_EMAIL}</p>
+                    </div>
+                  )}
+                  {mailStatus==="blocked"&&(
+                    <div className="rounded-2xl border border-[#FDB51F]/30 bg-[#FDB51F]/10 p-4">
+                      <p className="text-center text-2xl">⚠️</p>
+                      <p className="mt-2 text-center text-sm font-black text-[#FFE29A]">الإرسال التلقائي محصور ببريد مالك حساب Resend</p>
+                      <p className="mt-2 text-[12px] font-bold leading-6 text-white/65" dir="rtl">
+                        المفتاح مربوط لكن Resend لا يسمح بإرسال تجريبي إلى هذا العنوان إلا بعد توثيق دومين المدرسة في resend.com/domains ثم ضبط MAIL_FROM على بريد من الدومين الموثّق.
+                        <br/>يمكنك الآن استخدام زر الرسالة الجاهزة أدناه، أو توثيق الدومين ليعمل الإرسال تلقائياً.
+                      </p>
+                    </div>
+                  )}
+                  {mailStatus==="failed"&&(
+                    <div className="rounded-2xl border border-rose-400/25 bg-rose-500/10 p-4">
+                      <p className="text-center text-2xl">📭</p>
+                      <p className="mt-2 text-center text-sm font-black text-rose-200">تعذّر إرسال البريد</p>
+                      <p className="mt-1 text-center text-[12px] font-bold leading-6 text-rose-100/80" dir="rtl">تحقّق من صلاحية مفتاح Resend في Vercel ثم أعد المحاولة، أو استخدم الإرسال اليدوي.</p>
                     </div>
                   )}
                   {mailStatus==="manual"&&(
