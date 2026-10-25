@@ -316,8 +316,8 @@ function classesText(u:any){ const list=decodeClasses(u); return list.length?lis
 
 /* ═══════ ADMIN RECOVERY ═══════ */
 const ADMIN_RECOVERY_CODE = "MohdRoshdi@2050";
-const ADMIN_EMAIL = "mohdarabichod3@gmail.com";       /* delivery address • بريد الإرسال */
-const ADMIN_EMAIL_ALT = "m.roshdi_gwa@gemsedu.com";   /* also accepted as input • مقبول أيضاً للإدخال */
+const ADMIN_EMAIL = "m.roshdi_gwa@gemsedu.com";        /* primary • البريد الأساسي */
+const ADMIN_EMAIL_ALT = "mohdarabichod3@gmail.com";   /* alternate • بريد بديل مقبول */
 const ADMIN_EMAILS = [ADMIN_EMAIL, ADMIN_EMAIL_ALT];
 const isAdminEmail = (value:string)=> ADMIN_EMAILS.includes(String(value||"").trim().toLowerCase());
 
@@ -869,18 +869,16 @@ function TeacherPortalPage({teacher,users,works,comps,setWorks,onUpload,onBack}:
   /* class groups = grade + section, each with its own submission counters */
   const classes=useMemo(()=>{
     const map=new Map<string,{grade:string;section:string;studentIds:string[];works:number;pending:number;approved:number}>();
-    /* grades assigned to the teacher account (a teacher may teach several grades) */
-    const declaredGrades=new Set<string>();
+    /* classes assigned to the teacher account itself (may be several) */
     decodeClasses(teacher).forEach(c=>{
-      const key=`${c.grade}||`;
-      declaredGrades.add(c.grade);
-      if(!map.has(key)) map.set(key,{grade:c.grade,section:"",studentIds:[],works:0,pending:0,approved:0});
+      const key=`${c.grade}||${c.section||"—"}`;
+      if(!map.has(key)) map.set(key,{grade:c.grade,section:c.section||"—",studentIds:[],works:0,pending:0,approved:0});
     });
     myStudents.forEach(st=>{
       const grade=st.grade||"Grade —";
-      /* students of a declared grade are grouped under it, all sections together */
-      const key = declaredGrades.has(grade) ? `${grade}||` : `${grade}||${st.section||"—"}`;
-      if(!map.has(key)) map.set(key,{grade,section:declaredGrades.has(grade)?"":(st.section||"—"),studentIds:[],works:0,pending:0,approved:0});
+      const section=st.section||"—";
+      const key=`${grade}||${section}`;
+      if(!map.has(key)) map.set(key,{grade,section,studentIds:[],works:0,pending:0,approved:0});
       map.get(key)!.studentIds.push(st.id);
     });
     map.forEach(g=>{
@@ -894,7 +892,7 @@ function TeacherPortalPage({teacher,users,works,comps,setWorks,onUpload,onBack}:
     return Array.from(map.values()).sort((a,b)=>order(a.grade)-order(b.grade)||String(a.section).localeCompare(String(b.section)));
   },[myStudents,works,teacher]);
 
-  const classIds=selClass?myStudents.filter(st=>(st.grade||"Grade —")===selClass.grade && (selClass.section==="" || (st.section||"—")===selClass.section)).map(st=>st.id):null;
+  const classIds=selClass?myStudents.filter(st=>(st.grade||"Grade —")===selClass.grade&&(st.section||"—")===selClass.section).map(st=>st.id):null;
   const scoped = classIds ? works.filter(w=>classIds.includes(w.studentId)) : works;
   const pending=useMemo(()=>scoped.filter(w=>!isApproved(w)).sort((a,b)=>b.at.localeCompare(a.at)),[scoped]);
   const approved=useMemo(()=>scoped.filter(w=>isApproved(w)).sort((a,b)=>b.at.localeCompare(a.at)),[scoped]);
@@ -921,7 +919,7 @@ function TeacherPortalPage({teacher,users,works,comps,setWorks,onUpload,onBack}:
               <div className="text-[10px] font-black uppercase tracking-[0.28em] text-sky-300">Teacher Portal</div>
               <h1 className="truncate text-base font-black leading-tight sm:text-lg">{teacher.fullName}</h1>
               <p className="truncate text-[11px] font-semibold text-white/40">@{teacher.username} • {classes.length} classes • {myStudents.length} students</p>
-              {classes.length>0&&<p className="truncate text-[10px] font-bold text-sky-300/70">{classes.map(c=>c.section?classLabel(c):c.grade).join(" · ")}</p>}
+              {classes.length>0&&<p className="truncate text-[10px] font-bold text-sky-300/70">{classes.map(c=>classLabel(c)).join(" · ")}</p>}
             </div>
           </div>
           <div className="flex gap-2">
@@ -957,7 +955,7 @@ function TeacherPortalPage({teacher,users,works,comps,setWorks,onUpload,onBack}:
                     <div className="relative">
                       <div className="grid h-12 w-12 place-items-center rounded-2xl bg-black/25 text-2xl ring-1 ring-white/15">{gradeIcon(c.grade)}</div>
                       <h3 className="mt-3 text-base font-black leading-tight text-white">{c.grade}</h3>
-                      <p className="text-xs font-bold text-white/55">{c.section?`Section ${c.section}`:"All sections • كل الشعب"}</p>
+                      <p className="text-xs font-bold text-white/55">Section {c.section}</p>
                       <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] font-black">
                         <span className="rounded-full bg-black/30 px-2 py-1 text-white/70">👥 {c.studentIds.length}</span>
                         <span className="rounded-full bg-black/30 px-2 py-1 text-sky-200">🎬 {c.works}</span>
@@ -1017,7 +1015,7 @@ function TeacherPortalPage({teacher,users,works,comps,setWorks,onUpload,onBack}:
               <div className="flex min-w-0 items-center gap-3">
                 <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/10 text-xl ring-1 ring-white/15">{gradeIcon(selClass.grade)}</span>
                 <div className="min-w-0">
-                  <h2 className="truncate text-lg font-black leading-tight text-white">{selClass.grade}{selClass.section?` • Section ${selClass.section}`:" • All sections"}</h2>
+                  <h2 className="truncate text-lg font-black leading-tight text-white">{selClass.grade} • Section {selClass.section}</h2>
                   <p className="text-[11px] font-semibold text-white/40">{(classIds||[]).length} students • {scoped.length} submissions</p>
                 </div>
               </div>
@@ -1222,24 +1220,16 @@ export default function App(){
     setComps(p=>p.map(c=>c.id===comp.id?{...c,archived:true}:c));
   }
 
-  /* global bar: rendered above every public view so it can never disappear */
-  const portalsBar=(home?:()=>void)=>(
-    <TopBar
-      onStudent={()=>setView("studentLogin")}
-      onTeacher={()=>setView("teacherLogin")}
-      onAdmin={()=>setView("adminLogin")}
-      onHome={home}/>
-  );
-  if(view==="home")return<>{portalsBar()}<HomePage onStart={()=>setView("showcase")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")} onTeacher={()=>setView("teacherLogin")}/></>;
-  if(view==="showcase")return<>{portalsBar(()=>setView("home"))}<ShowcasePage comps={comps} users={users} works={works} evals={evals} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} setComps={setComps} setCerts={setCerts} setArchive={setArchive} certs={certs} adminPw={adminPw} onPromote={promoteToCertificate} onBack={()=>setView("home")} onClass={c=>{setSelClass(c);setView("classBoard")}} onParticipate={id=>{setSelCompId(id);setView("studentLogin")}} onWinners={()=>setView("winners")} onAllWorks={()=>setView("allWorks")} /></>;
-  if(view==="allWorks")return<>{portalsBar(()=>setView("home"))}<GlobalWorksPage users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/></>;
-  if(view==="winners")return<>{portalsBar(()=>setView("home"))}<WinnersPage comps={comps} works={works} evals={evals} users={users} likes={likes} setLikes={setLikes} certs={certs} onPromote={promoteToCertificate} adminPw={adminPw} onArchive={handleArchive} onBack={()=>setView("showcase")}/></>;
-  if(view==="classBoard"&&selClass)return<>{portalsBar(()=>setView("home"))}<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/></>;
+  if(view==="home")return<HomePage onStart={()=>setView("showcase")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")} onTeacher={()=>setView("teacherLogin")}/>;
+  if(view==="showcase")return<ShowcasePage comps={comps} users={users} works={works} evals={evals} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} setComps={setComps} setCerts={setCerts} setArchive={setArchive} certs={certs} adminPw={adminPw} onPromote={promoteToCertificate} onBack={()=>setView("home")} onClass={c=>{setSelClass(c);setView("classBoard")}} onParticipate={id=>{setSelCompId(id);setView("studentLogin")}} onWinners={()=>setView("winners")} onAllWorks={()=>setView("allWorks")} />;
+  if(view==="allWorks")return<GlobalWorksPage users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/>;
+  if(view==="winners")return<WinnersPage comps={comps} works={works} evals={evals} users={users} likes={likes} setLikes={setLikes} certs={certs} onPromote={promoteToCertificate} adminPw={adminPw} onArchive={handleArchive} onBack={()=>setView("showcase")}/>;
+  if(view==="classBoard"&&selClass)return<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/>;
   if(view==="adminLogin")return<AdminLoginPage adminPw={adminPw} onBack={()=>setView("home")} onOk={()=>setView("admin")}/>;
-  if(view==="admin")return<>{portalsBar(()=>setView("home"))}<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw} onBack={()=>setView("home")} /></>;
+  if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw} onBack={()=>setView("home")} />;
   if(view==="studentLogin")return<StudentLoginPage users={users} onBack={()=>setView("home")} onOk={s=>{ if(s.role==="teacher"){setCurrentTeacher(s);setCurrentStudent(s);setView("teacherPortal");} else {setCurrentStudent(s);setView("student");} }}/>;
   if(view==="teacherLogin")return<TeacherLoginPage users={users} onBack={()=>setView("home")} onOk={t=>{setCurrentTeacher(t);setCurrentStudent(t);setView("teacherPortal")}}/>;
-  if(view==="teacherPortal"&&currentTeacher)return<>{portalsBar(()=>setView("home"))}<TeacherPortalPage teacher={currentTeacher} users={users} works={works} comps={comps} setWorks={setWorks} onUpload={()=>{setCurrentStudent(currentTeacher);setView("student")}} onBack={()=>{setCurrentTeacher(null);setCurrentStudent(null);setView("home")}} /></>;
+  if(view==="teacherPortal"&&currentTeacher)return<TeacherPortalPage teacher={currentTeacher} users={users} works={works} comps={comps} setWorks={setWorks} onUpload={()=>{setCurrentStudent(currentTeacher);setView("student")}} onBack={()=>{setCurrentTeacher(null);setCurrentStudent(null);setView("home")}}/>;
   if(view==="teacherPortal"&&!currentTeacher)return<TeacherLoginPage users={users} onBack={()=>setView("home")} onOk={t=>{setCurrentTeacher(t);setCurrentStudent(t);setView("teacherPortal")}}/>;
   if(view==="student"&&currentStudent)return<StudentPage student={currentStudent} comps={comps} works={works} evals={evals} certs={certs} selCompId={selCompId} setWorks={setWorks} onBack={()=>{setCurrentStudent(null);setView("home")}}/>;
   if(view==="student"&&!currentStudent)return<StudentLoginPage users={users} onBack={()=>setView("home")} onOk={s=>{ if(s.role==="teacher"){setCurrentTeacher(s);setCurrentStudent(s);setView("teacherPortal");} else {setCurrentStudent(s);setView("student");} }}/>;
@@ -1249,34 +1239,6 @@ export default function App(){
 /* ════════════════════════════════════
    1. HOME
    ════════════════════════════════════ */
-
-/* ═══════════════════════════════════════════════════════════
-   GLOBAL TOP BAR — logo + Student / Teacher / Admin portals
-   Rendered once at the root so it can never disappear.
-   ═══════════════════════════════════════════════════════════ */
-function TopBar({onStudent,onTeacher,onAdmin,onHome}:{onStudent:()=>void;onTeacher:()=>void;onAdmin:()=>void;onHome?:()=>void}){
-  return(
-    <div style={{background:"#0b1028", borderBottom:"1px solid rgba(255,255,255,0.12)"}} className="relative z-50 w-full">
-      <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <button type="button" onClick={onHome} disabled={!onHome} className="flex min-w-0 items-center gap-3 text-left disabled:cursor-default">
-          <span className="rounded-2xl bg-white p-1.5 shadow-lg shadow-black/30 shrink-0">
-            <img src="/gems-logo.png" alt="GEMS" className="h-10 w-auto object-contain"/>
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate text-[13px] font-black uppercase italic tracking-tight text-white sm:text-sm">GWA Champions</span>
-            <span className="block truncate text-[10px] font-semibold text-[#FDB51F] sm:text-[11px]" dir="rtl">أبطال اللغة العربية والتربية الإسلامية والدراسات الاجتماعية</span>
-          </span>
-        </button>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={onStudent} className="flex-1 rounded-full border border-white/25 bg-white/10 px-3.5 py-2 text-[11px] font-bold text-white transition hover:bg-white/20 sm:flex-none sm:px-4 sm:text-xs">🎓 دخول الطالب</button>
-          <button type="button" onClick={onTeacher} className="flex-1 rounded-full border border-sky-400/50 bg-sky-500/25 px-3.5 py-2 text-[11px] font-black text-white transition hover:bg-sky-500/35 sm:flex-none sm:px-4 sm:text-xs">👩‍🏫 المعلم</button>
-          <button type="button" onClick={onAdmin} className="flex-1 rounded-full bg-[#FDB51F] px-3.5 py-2 text-[11px] font-black text-slate-950 transition hover:bg-[#F7C84A] sm:flex-none sm:px-4 sm:text-xs">🛡️ الإدارة</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function HomePage({onStart,onAdmin,onStudent,onTeacher}:{onStart:()=>void;onAdmin:()=>void;onStudent:()=>void;onTeacher:()=>void}){
   const pillars = [
     {ar:"اللغة العربية",en:"Arabic Language",icon:"📖",tone:"border-[#1697E8]/30 bg-[#1697E8]/15 text-sky-200"},
@@ -1290,6 +1252,24 @@ function HomePage({onStart,onAdmin,onStudent,onTeacher}:{onStart:()=>void;onAdmi
   ];
   return(
   <div className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#0b1028,#0f1535,#0d1230)] text-white"><Bg/>
+
+    {/* ── HEADER ── */}
+    <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0b1028]/85 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <Logo s/>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-black uppercase italic tracking-tight text-white sm:text-base">GWA Champions</p>
+            <p className="truncate text-[11px] font-semibold text-[#FDB51F]/80 sm:text-xs" dir="rtl">أبطال اللغة العربية والتربية الإسلامية والدراسات الاجتماعية</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button onClick={onStudent} className="flex-1 rounded-full border border-white/15 bg-white/5 px-4 py-2.5 text-xs font-bold text-white backdrop-blur transition hover:bg-white/10 sm:flex-none sm:px-5 sm:text-sm">🎓 Student</button>
+          <button onClick={onTeacher} className="flex-1 rounded-full border border-[#1697E8]/40 bg-[#1697E8]/15 px-4 py-2.5 text-xs font-black text-sky-100 transition hover:bg-[#1697E8]/25 sm:flex-none sm:px-5 sm:text-sm">👩‍🏫 Teacher</button>
+          <button onClick={onAdmin} className="flex-1 rounded-full bg-[#FDB51F] px-4 py-2.5 text-xs font-black text-slate-950 shadow-lg shadow-[#FDB51F]/20 transition hover:bg-[#F7C84A] sm:flex-none sm:px-5 sm:text-sm">الإدارة • Admin</button>
+        </div>
+      </div>
+    </header>
 
     <main className="relative z-10 mx-auto max-w-7xl px-5 pb-16 pt-8 sm:px-6 lg:pt-12">
 
@@ -1818,8 +1798,7 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
     const correct = isAdminEmail(value);
     if(correct){
       setFpErr(""); setFpOk(true);
-      /* always deliver to the confirmed mailbox */
-      void sendRecovery(ADMIN_EMAIL);
+      void sendRecovery(value);
       setBusy(false);
       return;
     }
@@ -1882,8 +1861,9 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
                     <div className="rounded-xl border border-[#FDB51F]/30 bg-[#FDB51F]/10 px-4 py-3 text-sm font-bold leading-7 text-[#FFE29A]">
                       ✅ البريد المسجّل هو:<br/>
                       <span dir="ltr" className="block font-black tracking-wide text-white">{ADMIN_EMAIL}</span>
-                      <span dir="ltr" className="mt-1 block text-[11px] font-bold text-[#FFE29A]/80">ويُقبل أيضاً • also accepted: {ADMIN_EMAIL_ALT}</span>
+                      <span dir="ltr" className="mt-1 block text-[11px] font-bold text-[#FFE29A]/80">أو • or: {ADMIN_EMAIL_ALT}</span>
                       <button type="button" onClick={()=>{setEmail(ADMIN_EMAIL);setFpErr("");}} className="mt-2 block w-full rounded-xl bg-[#FDB51F] py-2.5 text-xs font-black text-slate-950 hover:bg-[#F7C84A]">استخدام {ADMIN_EMAIL}</button>
+                      <button type="button" onClick={()=>{setEmail(ADMIN_EMAIL_ALT);setFpErr("");}} className="mt-1.5 block w-full rounded-xl border border-[#FDB51F]/40 bg-white/5 py-2.5 text-xs font-black text-[#FFE29A] hover:bg-white/10">استخدام {ADMIN_EMAIL_ALT}</button>
                     </div>
                   )}
 
@@ -2037,9 +2017,9 @@ function StudentLoginPage({users,onBack,onOk}:{users:User[];onBack:()=>void;onOk
 
 /* ── ADMIN: edit the classes a teacher teaches ── */
 function TeacherClassesModal({teacher,onSave,onClose}:{teacher:User;onSave:(list:ClassRef[])=>void;onClose:()=>void}){
-  const[list,setList]=useState<ClassRef[]>(()=>{const d=decodeClasses(teacher);return d.length?d.map(c=>({grade:c.grade,section:""})):[{grade:"Grade 6",section:""}]});
-  const[g,setG]=useState("Grade 6");
-  function add(){ setList(prev=>{ if(prev.some(c=>c.grade===g)) return prev; return [...prev,{grade:g,section:""}]; }); }
+  const[list,setList]=useState<ClassRef[]>(()=>{const d=decodeClasses(teacher);return d.length?d:[{grade:"Grade 6",section:"A"}]});
+  const[g,setG]=useState("Grade 6"); const[sec,setSec]=useState("A");
+  function add(){ setList(prev=>{ if(prev.some(c=>c.grade===g&&c.section===sec)) return prev; return [...prev,{grade:g,section:sec}]; }); }
   return(
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md" onClick={onClose}>
       <div className="w-full max-w-lg overflow-hidden rounded-[2rem] border border-white/10 bg-[#0f1535] shadow-2xl" onClick={e=>e.stopPropagation()}>
@@ -2051,16 +2031,17 @@ function TeacherClassesModal({teacher,onSave,onClose}:{teacher:User;onSave:(list
           </div>
           <div className="mb-4 flex flex-wrap gap-2">
             {list.map(c=>(
-              <span key={c.grade} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-bold text-white/80">
-                {c.grade}
-                <button onClick={()=>setList(prev=>prev.filter(x=>x.grade!==c.grade))} className="text-rose-300 hover:text-rose-200">✕</button>
+              <span key={`${c.grade}-${c.section}`} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-bold text-white/80">
+                {classLabel(c)}
+                <button onClick={()=>setList(prev=>prev.filter(x=>!(x.grade===c.grade&&x.section===c.section)))} className="text-rose-300 hover:text-rose-200">✕</button>
               </span>
             ))}
-            {list.length===0&&<span className="text-xs font-bold text-white/35">لم تُحدَّد صفوف بعد • No grades yet</span>}
+            {list.length===0&&<span className="text-xs font-bold text-white/35">لم تُحدَّد صفوف بعد • No classes yet</span>}
           </div>
-          <div className="grid grid-cols-[1fr_auto] items-end gap-2">
-            <div><FL>Grade • الصف</FL><Sel value={g} onChange={e=>setG(e.target.value)}>{GRADES.map(x=><option key={x} value={x}>{x}</option>)}</Sel></div>
-            <button type="button" onClick={add} className="rounded-2xl bg-[#1697E8] px-5 py-3 text-sm font-black text-white hover:bg-sky-400">＋ Add grade</button>
+          <div className="grid grid-cols-[1fr_auto_auto] items-end gap-2">
+            <div><FL>Grade</FL><Sel value={g} onChange={e=>setG(e.target.value)}>{GRADES.map(x=><option key={x} value={x}>{x}</option>)}</Sel></div>
+            <div><FL>Section</FL><Sel value={sec} onChange={e=>setSec(e.target.value)}>{_SECTIONS.map(x=><option key={x} value={x}>{x}</option>)}</Sel></div>
+            <button type="button" onClick={add} className="rounded-2xl bg-[#1697E8] px-4 py-3 text-sm font-black text-white hover:bg-sky-400">＋ Add</button>
           </div>
           <div className="mt-5 flex gap-3">
             <button onClick={onClose} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-black text-white/70">Cancel</button>
@@ -2083,7 +2064,7 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
   const[editClassesFor,setEditClassesFor]=useState<User|null>(null);
   /* teacher class builder state */
   const[tGrade,setTGrade]=useState("Grade 6"); const[tSec,setTSec]=useState("A");
-  const[tClasses,setTClasses]=useState<ClassRef[]>([{grade:"Grade 6",section:""}]);
+  const[tClasses,setTClasses]=useState<ClassRef[]>([{grade:"Grade 6",section:"A"}]);
   /* security tab state */
   const[pwOld,setPwOld]=useState(""); const[pwNew,setPwNew]=useState(""); const[pwConfirm,setPwConfirm]=useState("");
   const[pwMsg,setPwMsg]=useState(""); const[pwErr,setPwErr]=useState(""); const[showCode,setShowCode]=useState(false);
@@ -2109,10 +2090,10 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
     e.preventDefault();
     if(!name.trim()){setUmsg("Enter name");return}
     if(role==="student"&&!tid){setUmsg("Select teacher");return}
-    if(role==="teacher"&&tClasses.length===0){setUmsg("أضف صفاً واحداً على الأقل للمعلم • Add at least one grade");return}
+    if(role==="teacher"&&tClasses.length===0){setUmsg("أضف صفاً واحداً على الأقل للمعلم • Add at least one class");return}
     const u=mkUser(name,role,grade,sec,role==="student"?tid:undefined,users);
     if(role==="teacher"){
-      u.grade=encodeClasses(tClasses.map(c=>({grade:c.grade,section:""})));
+      u.grade=encodeClasses(tClasses);
       u.section="";
     }
     setUsers(p=>[u,...p]);
@@ -2122,7 +2103,7 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
   function saveTeacherClasses(list:ClassRef[]){
     if(!editClassesFor) return;
     const id=editClassesFor.id;
-    setUsers(prev=>prev.map(it=>it.id===id?{...it,grade:encodeClasses(list.map(c=>({grade:c.grade,section:""}))),section:""}:it));
+    setUsers(prev=>prev.map(it=>it.id===id?{...it,grade:encodeClasses(list),section:""}:it));
   }
   function createComp(e:React.FormEvent){e.preventDefault();if(!nAr.trim()||!nEn.trim()){setCmsg("Enter both names");return}
     const code=Math.random().toString(36).slice(2,8).toUpperCase();
@@ -2167,21 +2148,9 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
 
   return(
     <div className="relative min-h-screen bg-[linear-gradient(180deg,#0d1230,#111a45,#0d1230)] text-white"><Bg/>
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/95 backdrop-blur-xl px-4 py-3 sm:px-6">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-center gap-3">
-            <Logo s/>
-            <div className="min-w-0">
-              <div className="truncate text-[10px] font-bold uppercase tracking-[0.24em] text-[#FDB51F]">Administration Portal • بوابة الإدارة</div>
-              <h1 className="truncate text-base font-black sm:text-xl">User &amp; Competition Management</h1>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={onBack} className="flex-1 rounded-full bg-[#FDB51F] px-4 py-2.5 text-xs font-black text-slate-950 shadow-lg shadow-[#FDB51F]/20 hover:bg-[#F7C84A] sm:flex-none sm:text-sm">🏠 الصفحة الرئيسية • Home</button>
-            <button onClick={()=>setTab("security")} className="flex-1 rounded-full border border-white/15 bg-white/5 px-4 py-2.5 text-xs font-bold text-white hover:bg-white/10 sm:flex-none sm:text-sm">🔑 Password</button>
-            <button onClick={onBack} className="rounded-full border border-rose-400/30 bg-rose-500/15 px-4 py-2.5 text-xs font-black text-rose-200 hover:bg-rose-500/25 sm:text-sm">خروج</button>
-          </div>
-        </div>
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
+        <div className="flex items-center gap-4"><Logo s/><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#FDB51F]">Administration Portal • بوابة الإدارة</div><h1 className="text-xl font-black">User & Competition Management</h1></div></div>
+        <div className="flex gap-3"><button onClick={()=>setTab("security")} className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-bold text-white hover:bg-white/10">🔑 Password</button><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-bold text-white hover:bg-white/10">Home</button></div>
       </header>
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex flex-wrap gap-2 mb-8 bg-white/5 border border-white/10 rounded-2xl p-1.5 overflow-x-auto">
@@ -2207,16 +2176,17 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
                       <p className="mb-2 text-xs font-black text-sky-200">🏫 الصفوف التي يدرّسها المعلم • Classes taught</p>
                       <div className="mb-3 flex flex-wrap gap-2">
                         {tClasses.map(c=>(
-                          <span key={c.grade} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/25 px-3 py-1.5 text-xs font-bold text-white/85">
-                            {c.grade}
-                            <button type="button" onClick={()=>setTClasses(prev=>prev.filter(x=>x.grade!==c.grade))} className="text-rose-300 hover:text-rose-200">✕</button>
+                          <span key={`${c.grade}-${c.section}`} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/25 px-3 py-1.5 text-xs font-bold text-white/85">
+                            {classLabel(c)}
+                            <button type="button" onClick={()=>setTClasses(prev=>prev.filter(x=>!(x.grade===c.grade&&x.section===c.section)))} className="text-rose-300 hover:text-rose-200">✕</button>
                           </span>
                         ))}
-                        {tClasses.length===0&&<span className="text-xs font-bold text-white/35">لم تُضف صفوف بعد • No grades added</span>}
+                        {tClasses.length===0&&<span className="text-xs font-bold text-white/35">لم تُضف صفوف بعد • No classes added</span>}
                       </div>
-                      <div className="grid grid-cols-[1fr_auto] items-end gap-2">
-                        <div><FL>Grade • الصف</FL><Sel value={tGrade} onChange={e=>setTGrade(e.target.value)}>{GRADES.map(x=><option key={x} value={x}>{x}</option>)}</Sel></div>
-                        <button type="button" onClick={()=>setTClasses(prev=>prev.some(c=>c.grade===tGrade)?prev:[...prev,{grade:tGrade,section:""}])} className="rounded-2xl bg-[#1697E8] px-5 py-3 text-sm font-black text-white hover:bg-sky-400">＋ Add grade</button>
+                      <div className="grid grid-cols-[1fr_auto_auto] items-end gap-2">
+                        <div><FL>Grade</FL><Sel value={tGrade} onChange={e=>setTGrade(e.target.value)}>{GRADES.map(x=><option key={x} value={x}>{x}</option>)}</Sel></div>
+                        <div><FL>Section</FL><Sel value={tSec} onChange={e=>setTSec(e.target.value)}>{_SECTIONS.map(x=><option key={x} value={x}>{x}</option>)}</Sel></div>
+                        <button type="button" onClick={()=>setTClasses(prev=>prev.some(c=>c.grade===tGrade&&c.section===tSec)?prev:[...prev,{grade:tGrade,section:tSec}])} className="rounded-2xl bg-[#1697E8] px-4 py-3 text-sm font-black text-white hover:bg-sky-400">＋</button>
                       </div>
                     </div>
                   )}
@@ -2237,7 +2207,7 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
               <div className="space-y-3">{users.filter(u=>u.id!=="admin").map(u=>(
                 <div key={u.id} className={cn("rounded-2xl border p-4 transition",u.active?"border-white/10 bg-black/20":"border-rose-500/20 bg-rose-500/5 opacity-60")}>
                   <div className="flex justify-between items-start gap-2">
-                    <div className="min-w-0"><div className="font-black text-white flex items-center gap-2 flex-wrap">{u.fullName}{!u.active&&<span className="text-[9px] bg-rose-500 text-white px-2 py-0.5 rounded-full uppercase">Disabled</span>}</div><div className="flex flex-wrap gap-1.5 mt-2"><Pill t={u.role==="teacher"?"green":"blue"}>{u.role}</Pill>{u.role==="student"&&<Pill t="gold">{u.grade}</Pill>}{u.role==="student"&&<Pill t="pink">{u.section}</Pill>}{u.role==="teacher"&&decodeClasses(u).map(c=><Pill key={c.grade} t="green">🏫 {c.grade}</Pill>)}{u.role==="student"&&u.teacherId&&<Pill t="slate">Teacher: {teachers.find(t=>t.id===u.teacherId)?.fullName||"—"}</Pill>}</div><div className="mt-1.5 text-xs text-white/40 font-bold">👤 {u.username} / 🔑 {u.password}</div></div>
+                    <div className="min-w-0"><div className="font-black text-white flex items-center gap-2 flex-wrap">{u.fullName}{!u.active&&<span className="text-[9px] bg-rose-500 text-white px-2 py-0.5 rounded-full uppercase">Disabled</span>}</div><div className="flex flex-wrap gap-1.5 mt-2"><Pill t={u.role==="teacher"?"green":"blue"}>{u.role}</Pill>{u.role==="student"&&<Pill t="gold">{u.grade}</Pill>}{u.role==="student"&&<Pill t="pink">{u.section}</Pill>}{u.role==="teacher"&&decodeClasses(u).map(c=><Pill key={`${c.grade}-${c.section}`} t="green">🏫 {classLabel(c)}</Pill>)}{u.role==="student"&&u.teacherId&&<Pill t="slate">Teacher: {teachers.find(t=>t.id===u.teacherId)?.fullName||"—"}</Pill>}</div><div className="mt-1.5 text-xs text-white/40 font-bold">👤 {u.username} / 🔑 {u.password}</div></div>
                     <div className="flex flex-col gap-1.5 shrink-0">{u.role==="teacher"&&<button onClick={()=>setEditClassesFor(u)} className="rounded-xl px-3 py-1.5 text-[10px] font-black bg-sky-500/20 border border-sky-400/30 text-sky-200 hover:bg-sky-500/30 transition">🏫 Classes</button>}<button onClick={()=>setUsers(prev=>prev.map(it=>it.id===u.id?{...it,active:!it.active}:it))} className={cn("rounded-xl px-3 py-2 text-xs font-black transition",u.active?"bg-rose-500 text-white hover:bg-rose-600":"bg-emerald-500 text-white hover:bg-emerald-600")}>{u.active?"Disable":"Activate"}</button><button onClick={()=>{if(window.confirm(`Remove "${u.fullName}" permanently?`)){ setUsers(prev=>prev.filter(it=>it.id!==u.id)); }}} className="rounded-xl px-3 py-1.5 text-[10px] font-black bg-black/30 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition">🗑 Remove</button></div>
                   </div>
                 </div>
