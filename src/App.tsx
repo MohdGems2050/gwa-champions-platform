@@ -2185,9 +2185,21 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
 
   return(
     <div className="relative min-h-screen bg-[linear-gradient(180deg,#0d1230,#111a45,#0d1230)] text-white"><Bg/>
-      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
-        <div className="flex items-center gap-4"><Logo s/><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#FDB51F]">Administration Portal • بوابة الإدارة</div><h1 className="text-xl font-black">User & Competition Management</h1></div></div>
-        <div className="flex gap-3"><button onClick={()=>setTab("security")} className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-bold text-white hover:bg-white/10">🔑 Password</button><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-bold text-white hover:bg-white/10">Home</button></div>
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/95 backdrop-blur-xl px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <Logo s/>
+            <div className="min-w-0">
+              <div className="truncate text-[10px] font-bold uppercase tracking-[0.24em] text-[#FDB51F]">Administration Portal • بوابة الإدارة</div>
+              <h1 className="truncate text-base font-black sm:text-xl">User &amp; Competition Management</h1>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={onBack} className="flex-1 rounded-full bg-[#FDB51F] px-4 py-2.5 text-xs font-black text-slate-950 shadow-lg shadow-[#FDB51F]/20 hover:bg-[#F7C84A] sm:flex-none sm:text-sm">🏠 الصفحة الرئيسية • Home</button>
+            <button onClick={()=>setTab("security")} className="flex-1 rounded-full border border-white/15 bg-white/5 px-4 py-2.5 text-xs font-bold text-white hover:bg-white/10 sm:flex-none sm:text-sm">🔑 Password</button>
+            <button onClick={onBack} className="rounded-full border border-rose-400/30 bg-rose-500/15 px-4 py-2.5 text-xs font-black text-rose-200 hover:bg-rose-500/25 sm:text-sm">خروج</button>
+          </div>
+        </div>
       </header>
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex flex-wrap gap-2 mb-8 bg-white/5 border border-white/10 rounded-2xl p-1.5 overflow-x-auto">
