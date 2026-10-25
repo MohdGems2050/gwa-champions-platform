@@ -249,24 +249,28 @@ function sv(k:string,v:any){
           if(legacyErr) console.error("works upsert (legacy):", legacyErr.message);
         }
 
-        /* ── APPROVALS: stored in competitions_cloud so they persist even when the
-              works_cloud table has no status columns (single source of truth). ── */
+        /* ── APPROVALS ──
+           The live works_cloud table has no status columns, so the approval flag is
+           stored as a dedicated row in `evaluations` (which exists and already has an
+           `approved` boolean). Row id = "__approval__<workId>". Approved rows are the
+           single source of truth on every device. */
         try{
           const approved = v.filter((w:any)=>w && w.status==="approved");
           const approveRows = approved.map((w:any)=>({
             id:"__approval__"+String(w.id),
-            name_en:JSON.stringify({by:w.approvedBy||"",at:w.approvedAt||new Date().toISOString()}),
-            name_ar:"approval", logo_url:"", grades:[], rules_ar:"", rules_en:"",
-            closing_date:"", cert_date:"", started:true, archived:true, criteria:[], eval_code:""
+            work_id:String(w.id),
+            scores:[],
+            approved:true,
+            at: validDate(w.approvedAt)
           }));
           if(approveRows.length>0){
-            const {error:apErr} = await supabase.from("competitions_cloud").upsert(approveRows,{onConflict:"id"});
+            const {error:apErr} = await supabase.from("evaluations").upsert(approveRows,{onConflict:"id"});
             if(apErr) console.error("approval upsert:", apErr.message);
           }
-          const {data:existing} = await supabase.from("competitions_cloud").select("id").like("id","__approval__%");
+          const {data:existing} = await supabase.from("evaluations").select("id").like("id","__approval__%");
           const keep = new Set(approved.map((w:any)=>"__approval__"+String(w.id)));
           const stale = (existing||[]).map((r:any)=>String(r.id)).filter((id:string)=>!keep.has(id));
-          for(const id of stale) await supabase.from("competitions_cloud").delete().eq("id",id);
+          for(const id of stale) await supabase.from("evaluations").delete().eq("id",id);
         }catch(e){ console.warn("approval sync skipped", e); }
       }
       if(k===SK.e && Array.isArray(v) && v.length > 0){
@@ -1150,23 +1154,6 @@ export default function App(){
           const adminRow = dbComps.find((c:any)=>String(c.id)==="__admin__");
           if(adminRow?.name_en) setAdminPw(String(adminRow.name_en));
           const realRows = dbComps.filter((c:any)=>String(c.id)!=="__meta__" && !String(c.id).startsWith("__"));
-          /* approvals are cached in competitions_cloud → restore them on every device */
-          const approvalRows = dbComps.filter((c:any)=>String(c.id).startsWith("__approval__"));
-          if(approvalRows.length>0){
-            const approvalMap = new Map<string,{by?:string;at?:string}>();
-            approvalRows.forEach((r:any)=>{
-              const wid = String(r.id).replace("__approval__","");
-              let meta:any = {};
-              try{ meta = r.name_en ? JSON.parse(r.name_en) : {}; }catch{}
-              approvalMap.set(wid, {by:meta.by, at:meta.at});
-            });
-            setWorks(prev=>prev.map(w=>{
-              const meta = approvalMap.get(w.id);
-              if(!meta) return w;
-              return {...w, status:"approved" as WorkStatus, approvedBy:w.approvedBy||meta.by, approvedAt:w.approvedAt||meta.at};
-            }));
-          }
-          const initialized = dbComps.some((c:any)=>String(c.id)==="__meta__");
           if(realRows.length>0){
             const mapped = realRows.map((c:any)=>({
               id:c.id, nameEn:c.name_en||"Competition", nameAr:c.name_ar||"مسابقة",
@@ -1187,8 +1174,20 @@ export default function App(){
           }
         }
         const {data:dbEvals} = await supabase.from("evaluations").select("*");
-        if(dbEvals && dbEvals.length > 0){
-          const mapped = dbEvals.map((e:any)=>({
+        /* approval records live in the same table, flagged by their id prefix */
+        const approvalRows = (dbEvals||[]).filter((e:any)=>String(e.id).startsWith("__approval__"));
+        if(approvalRows.length>0){
+          const approvalMap = new Map<string,{by?:string;at?:string}>();
+          approvalRows.forEach((r:any)=>approvalMap.set(String(r.work_id||String(r.id).replace("__approval__","")), {by:r.approved_by||"", at:r.at}));
+          setWorks(prev=>prev.map(w=>{
+            const meta = approvalMap.get(w.id);
+            if(!meta) return w;
+            return {...w, status:"approved" as WorkStatus, approvedBy:w.approvedBy||meta.by||"Teacher", approvedAt:w.approvedAt||meta.at};
+          }));
+        }
+        const scoreRows = (dbEvals||[]).filter((e:any)=>!String(e.id).startsWith("__approval__"));
+        if(scoreRows.length > 0){
+          const mapped = scoreRows.map((e:any)=>({
             id:e.id, workId:e.work_id, scores:e.scores||[], at:e.at||new Date().toISOString(), approved:e.approved||false
           }));
           setEvals(prev=>{
