@@ -135,19 +135,11 @@ const pNames=["أحمد بن خالد","فاطمة الزهراء","محمد ا�
 const rNames=["يوسف المطيري","آمنة الكتبي","حمدان السويدي","مريم البلوشي","عمر الشامسي","هالة المزروعي","سالم الظاهري","نورا الفلاسي","فيصل الكعبي","دانة المهيري","راشد النقبي","شيخة الحبسي"];
 const uaeNames=["سلطان المنصوري","موزة الكتبي","حمد الشحي","عليا الظاهري","سعيد النيادي","شما البلوشي","ماجد الرميثي","هند الزعابي","أحمد المزروعي","فاطمة الحمادي","خليفة الشامسي","مريم السويدي"];
 
-const demoStudents:User[]=[];
-[...qNames,...tNames,...pNames,...rNames,...uaeNames].forEach((n,i)=>{
-  const grade=`Grade ${4+Math.floor(i%9)}`;const sec=`${["A","B","X"][i%3]}`;
-  demoStudents.push({id:`ds${i}`,fullName:n,role:"student",grade,section:sec,teacherId:i%2===0?"t1":"t2",username:`demo${i}`,password:"GWA2050",createdAt:"",active:true});
-});
-
 const seedU: User[] = [
-  { id:"t1", fullName:"Ms Heba", role:"teacher", grade:"Grade 6", section:"", username:"heba", password:"Teach2050", createdAt:"", active:true },
-  { id:"t2", fullName:"Mr Ahmed", role:"teacher", grade:"Grade 5", section:"", username:"ahmed", password:"Teach2050", createdAt:"", active:true },
+  /* ONE default teacher account — teaches several classes */
+  { id:"t1", fullName:"Ms Heba", role:"teacher", grade:"Grade 6:X;Grade 5:A", section:"", username:"heba", password:"Teach2050", createdAt:"", active:true },
+  /* ONE default student account */
   { id:"s1", fullName:"Mariam Salem", role:"student", grade:"Grade 6", section:"X", teacherId:"t1", username:"mariam.salem", password:"GWA2050", createdAt:"", active:true },
-  { id:"s2", fullName:"Omar Khalid", role:"student", grade:"Grade 6", section:"X", teacherId:"t1", username:"omar.khalid", password:"GWA2050", createdAt:"", active:true },
-  { id:"s3", fullName:"Sara Mansour", role:"student", grade:"Grade 5", section:"A", teacherId:"t2", username:"sara.mansour", password:"GWA2050", createdAt:"", active:true },
-  ...demoStudents,
 ];
 
 const seedC:Comp[]=[
@@ -288,6 +280,43 @@ function mkUser(name:string,role:Role,grade:string,section:string,tid:string|und
   const num=String(users.length+2050).slice(-4);
   return{id:mid(role.charAt(0)),fullName:name.trim(),role,grade,section:role==="student"?section:"",teacherId:tid,username:u,password:(role==="teacher"?"Teach":"GWA")+num,createdAt:new Date().toISOString(),active:true}
 }
+
+
+/* ═══════ TEACHER CLASSES (a teacher may teach several classes) ═══════ */
+type ClassRef = { grade:string; section:string };
+const CLASS_SEP = ";";
+const CLASS_PART = ":";
+function encodeClasses(list:ClassRef[]):string{
+  const seen=new Set<string>();
+  return list
+    .filter(c=>c && c.grade)
+    .filter(c=>{const k=`${c.grade}${CLASS_PART}${c.section||""}`;if(seen.has(k))return false;seen.add(k);return true;})
+    .map(c=>`${c.grade}${CLASS_PART}${c.section||""}`)
+    .join(CLASS_SEP);
+}
+function decodeClasses(u:{role?:string;grade?:string;section?:string}|null|undefined):ClassRef[]{
+  if(!u||!u.grade) return [];
+  if(u.role!=="teacher") return [{grade:u.grade, section:u.section||""}];
+  const out:ClassRef[]=[];
+  String(u.grade).split(CLASS_SEP).forEach(part=>{
+    const raw=String(part||"").trim();
+    if(!raw) return;
+    if(raw.includes(CLASS_PART)){
+      const [g,sec]=raw.split(CLASS_PART);
+      out.push({grade:(g||"").trim(), section:(sec||"").trim()});
+    }else{
+      out.push({grade:raw, section:(u.section||"").trim()});
+    }
+  });
+  if(out.length===0) return [{grade:u.grade, section:u.section||""}];
+  return out;
+}
+function classLabel(c:ClassRef){ return `${c.grade}${c.section?` • ${c.section}`:""}`; }
+function classesText(u:any){ const list=decodeClasses(u); return list.length?list.map(classLabel).join(" , "):"—"; }
+
+/* ═══════ ADMIN RECOVERY ═══════ */
+const ADMIN_RECOVERY_CODE = "MohdRoshdi@2050";
+const ADMIN_EMAIL = "M.roshdi_gwa@gemsedu.com";
 
 /* ═══════ SUPABASE HELPERS ═══════ */
 function useVideoUrl(path: string): string {
@@ -837,6 +866,11 @@ function TeacherPortalPage({teacher,users,works,comps,setWorks,onUpload,onBack}:
   /* class groups = grade + section, each with its own submission counters */
   const classes=useMemo(()=>{
     const map=new Map<string,{grade:string;section:string;studentIds:string[];works:number;pending:number;approved:number}>();
+    /* classes assigned to the teacher account itself (may be several) */
+    decodeClasses(teacher).forEach(c=>{
+      const key=`${c.grade}||${c.section||"—"}`;
+      if(!map.has(key)) map.set(key,{grade:c.grade,section:c.section||"—",studentIds:[],works:0,pending:0,approved:0});
+    });
     myStudents.forEach(st=>{
       const grade=st.grade||"Grade —";
       const section=st.section||"—";
@@ -853,7 +887,7 @@ function TeacherPortalPage({teacher,users,works,comps,setWorks,onUpload,onBack}:
     });
     const order=(g:string)=>{const n=parseInt(String(g).replace(/[^0-9]/g,""),10);return isNaN(n)?99:n;};
     return Array.from(map.values()).sort((a,b)=>order(a.grade)-order(b.grade)||String(a.section).localeCompare(String(b.section)));
-  },[myStudents,works]);
+  },[myStudents,works,teacher]);
 
   const classIds=selClass?myStudents.filter(st=>(st.grade||"Grade —")===selClass.grade&&(st.section||"—")===selClass.section).map(st=>st.id):null;
   const scoped = classIds ? works.filter(w=>classIds.includes(w.studentId)) : works;
@@ -882,6 +916,7 @@ function TeacherPortalPage({teacher,users,works,comps,setWorks,onUpload,onBack}:
               <div className="text-[10px] font-black uppercase tracking-[0.28em] text-sky-300">Teacher Portal</div>
               <h1 className="truncate text-base font-black leading-tight sm:text-lg">{teacher.fullName}</h1>
               <p className="truncate text-[11px] font-semibold text-white/40">@{teacher.username} • {classes.length} classes • {myStudents.length} students</p>
+              {classes.length>0&&<p className="truncate text-[10px] font-bold text-sky-300/70">{classes.map(c=>classLabel(c)).join(" · ")}</p>}
             </div>
           </div>
           <div className="flex gap-2">
@@ -1088,7 +1123,9 @@ export default function App(){
         }
         const {data:dbComps,error:compsErr} = await supabase.from("competitions_cloud").select("*");
         if(!compsErr && Array.isArray(dbComps)){
-          const realRows = dbComps.filter((c:any)=>String(c.id)!=="__meta__");
+          const adminRow = dbComps.find((c:any)=>String(c.id)==="__admin__");
+          if(adminRow?.name_en) setAdminPw(String(adminRow.name_en));
+          const realRows = dbComps.filter((c:any)=>String(c.id)!=="__meta__" && !String(c.id).startsWith("__"));
           const initialized = dbComps.some((c:any)=>String(c.id)==="__meta__");
           if(realRows.length>0){
             const mapped = realRows.map((c:any)=>({
@@ -1138,6 +1175,21 @@ export default function App(){
 
   useEffect(()=>{sv(SK.u,users)},[users]);
   useEffect(()=>{sv(SK.pw,adminPw)},[adminPw]);
+
+  /* cloud copy of the admin password so every device unlocks with the same one */
+  useEffect(()=>{
+    if(!isSupabaseConfigured || !adminPw) return;
+    const id=setTimeout(async ()=>{
+      try{
+        await supabase.from("competitions_cloud").upsert({
+          id:"__admin__", name_en:String(adminPw), name_ar:"__admin__", logo_url:"",
+          grades:[], rules_ar:"", rules_en:"", closing_date:"", cert_date:"",
+          started:true, archived:true, criteria:[], eval_code:""
+        },{onConflict:"id"});
+      }catch{}
+    },400);
+    return ()=>clearTimeout(id);
+  },[adminPw]);
   useEffect(()=>{sv(SK.c,comps)},[comps]);
   useEffect(()=>{sv(SK.w,works)},[works]);
   useEffect(()=>{sv(SK.e,evals)},[evals]);
@@ -1694,7 +1746,15 @@ function AdminLoginPage({adminPw,onBack,onOk}:{adminPw:string;onBack:()=>void;on
       <div className="relative w-full max-w-md rounded-[2.4rem] border border-white/10 bg-white/5 p-8 backdrop-blur-xl shadow-2xl"><button onClick={onBack} className="text-white/50 text-sm font-bold mb-6 hover:text-white">← Back</button><div className="flex flex-col items-center mb-8"><Logo/><h2 className="mt-5 text-2xl font-black text-white">Administration Portal</h2><p className="text-sm text-white/50 mt-1">بوابة الإدارة</p></div>
         <form onSubmit={sub} className="space-y-5"><div><FL>Admin Password</FL><div className="relative"><Inp type={showPw?"text":"password"} value={pw} onChange={e=>{setPw(e.target.value);if(err)setErr("")}} className="pr-14" autoComplete="off"/><button type="button" onClick={()=>setShowPw(s=>!s)} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 text-xs font-bold">{showPw?"Hide":"Show"}</button></div></div>
           {err&&<div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-200 text-center">⚠️ {err}</div>}
-          <button type="submit" className="w-full rounded-2xl bg-[#FDB51F] px-5 py-4 text-base font-black text-slate-950 shadow-lg shadow-[#FDB51F]/20 hover:bg-[#F7C84A]">دخول الإدارة • Enter</button></form></div>
+          <button type="submit" className="w-full rounded-2xl bg-[#FDB51F] px-5 py-4 text-base font-black text-slate-950 shadow-lg shadow-[#FDB51F]/20 hover:bg-[#F7C84A]">دخول الإدارة • Enter</button></form>
+        <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4 text-center">
+          <p className="text-[11px] font-bold text-white/45">نسيت كلمة المرور؟ ادخل إليها بالرمز من داخل بوابة الإدارة، أو أرسل الرمز إلى بريد الإدارة.</p>
+          <button type="button" onClick={()=>{
+            const body=[`GWA Champions — Admin access details`,`بيانات دخول الإدارة`,``,`Recovery code: ${ADMIN_RECOVERY_CODE}`,``,`Portal: https://gwa-champions-platform.vercel.app/admin`].join("\n");
+            window.location.href=`mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent("GWA Champions — Admin recovery code")}&body=${encodeURIComponent(body)}`;
+          }} className="mt-2 rounded-full border border-[#1697E8]/40 bg-[#1697E8]/15 px-4 py-2 text-[11px] font-black text-sky-100 hover:bg-[#1697E8]/25">📧 إرسال رمز الاستعادة إلى {ADMIN_EMAIL}</button>
+          <p className="mt-2 text-[10px] text-white/25">Recovery code: MohdRoshdi@•••••</p>
+        </div></div>
     </div>
   );
 }
@@ -1781,16 +1841,60 @@ function StudentLoginPage({users,onBack,onOk}:{users:User[];onBack:()=>void;onOk
 /* ════════════════════════════════════
    7. ADMIN PAGE
    ════════════════════════════════════ */
+
+/* ── ADMIN: edit the classes a teacher teaches ── */
+function TeacherClassesModal({teacher,onSave,onClose}:{teacher:User;onSave:(list:ClassRef[])=>void;onClose:()=>void}){
+  const[list,setList]=useState<ClassRef[]>(()=>{const d=decodeClasses(teacher);return d.length?d:[{grade:"Grade 6",section:"A"}]});
+  const[g,setG]=useState("Grade 6"); const[sec,setSec]=useState("A");
+  function add(){ setList(prev=>{ if(prev.some(c=>c.grade===g&&c.section===sec)) return prev; return [...prev,{grade:g,section:sec}]; }); }
+  return(
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md" onClick={onClose}>
+      <div className="w-full max-w-lg overflow-hidden rounded-[2rem] border border-white/10 bg-[#0f1535] shadow-2xl" onClick={e=>e.stopPropagation()}>
+        <div className="h-1.5 w-full bg-gradient-to-r from-[#1697E8] via-[#10B09B] to-[#FDB51F]"/>
+        <div className="p-6">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div><h3 className="text-lg font-black text-white">🏫 Classes • الصفوف</h3><p className="text-sm text-white/45">{teacher.fullName} — @{teacher.username}</p></div>
+            <button onClick={onClose} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white hover:bg-white/10">✕</button>
+          </div>
+          <div className="mb-4 flex flex-wrap gap-2">
+            {list.map(c=>(
+              <span key={`${c.grade}-${c.section}`} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-bold text-white/80">
+                {classLabel(c)}
+                <button onClick={()=>setList(prev=>prev.filter(x=>!(x.grade===c.grade&&x.section===c.section)))} className="text-rose-300 hover:text-rose-200">✕</button>
+              </span>
+            ))}
+            {list.length===0&&<span className="text-xs font-bold text-white/35">لم تُحدَّد صفوف بعد • No classes yet</span>}
+          </div>
+          <div className="grid grid-cols-[1fr_auto_auto] items-end gap-2">
+            <div><FL>Grade</FL><Sel value={g} onChange={e=>setG(e.target.value)}>{GRADES.map(x=><option key={x} value={x}>{x}</option>)}</Sel></div>
+            <div><FL>Section</FL><Sel value={sec} onChange={e=>setSec(e.target.value)}>{_SECTIONS.map(x=><option key={x} value={x}>{x}</option>)}</Sel></div>
+            <button type="button" onClick={add} className="rounded-2xl bg-[#1697E8] px-4 py-3 text-sm font-black text-white hover:bg-sky-400">＋ Add</button>
+          </div>
+          <div className="mt-5 flex gap-3">
+            <button onClick={onClose} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-black text-white/70">Cancel</button>
+            <button onClick={()=>{onSave(list);onClose();}} className="flex-[1.4] rounded-2xl bg-[#FDB51F] py-3 text-sm font-black text-slate-950 hover:bg-[#F7C84A]">Save Classes ✓</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onBack}:{users:User[];setUsers:React.Dispatch<React.SetStateAction<User[]>>;comps:Comp[];setComps:React.Dispatch<React.SetStateAction<Comp[]>>;archive:ArchiveEntry[];adminPw:string;setAdminPw:(pw:string)=>void;onBack:()=>void}){
   const teachers=useMemo(()=>users.filter(u=>u.role==="teacher"),[users]);
-  const[tab,setTab]=useState<"users"|"export"|"comps"|"archive">("users");
+  const[tab,setTab]=useState<"users"|"export"|"comps"|"archive"|"security">("users");
   const fRef=useRef<HTMLInputElement>(null);
   const[name,setName]=useState(""); const[role,setRole]=useState<Role>("student"); const[grade,setGrade]=useState("Grade 6"); const[sec,setSec]=useState("X"); const[tid,setTid]=useState(""); const[umsg,setUmsg]=useState("");
   const[nAr,setNAr]=useState(""); const[nEn,setNEn]=useState(""); const[cGrades,setCGrades]=useState<string[]>(["Grade 6"]); const[rAr,setRAr]=useState(()=>ruleTemplateAr("المسابقة")); const[rEn,setREn]=useState(()=>ruleTemplateEn("Competition")); const[cClose,setCClose]=useState("2026-06-01"); const[cCert,setCCert]=useState("2026-06-15"); const[cmsg,setCmsg]=useState(""); const[impMsg,setImpMsg]=useState("");
   const[compCriteria,setCompCriteria]=useState<string[]>([...DEFAULT_CRITERIA]);
   const[selPreset,setSelPreset]=useState<string>("");
-  const[showPwModal,setShowPwModal]=useState(false);
-  const[newPw,setNewPw]=useState("");
+  const[editClassesFor,setEditClassesFor]=useState<User|null>(null);
+  /* teacher class builder state */
+  const[tGrade,setTGrade]=useState("Grade 6"); const[tSec,setTSec]=useState("A");
+  const[tClasses,setTClasses]=useState<ClassRef[]>([{grade:"Grade 6",section:"A"}]);
+  /* security tab state */
+  const[pwOld,setPwOld]=useState(""); const[pwNew,setPwNew]=useState(""); const[pwConfirm,setPwConfirm]=useState("");
+  const[pwMsg,setPwMsg]=useState(""); const[pwErr,setPwErr]=useState(""); const[showCode,setShowCode]=useState(false);
 
   function applyPreset(idx:string){
     setSelPreset(idx);
@@ -1809,8 +1913,25 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
     }
   }
 
-  function createUser(e:React.FormEvent){e.preventDefault();if(!name.trim()){setUmsg("Enter name");return}if(role==="student"&&!tid){setUmsg("Select teacher");return}
-    const u=mkUser(name,role,grade,sec,role==="student"?tid:undefined,users);setUsers(p=>[u,...p]);setUmsg(`✅ ${u.username} / ${u.password}`);setName("")}
+  function createUser(e:React.FormEvent){
+    e.preventDefault();
+    if(!name.trim()){setUmsg("Enter name");return}
+    if(role==="student"&&!tid){setUmsg("Select teacher");return}
+    if(role==="teacher"&&tClasses.length===0){setUmsg("أضف صفاً واحداً على الأقل للمعلم • Add at least one class");return}
+    const u=mkUser(name,role,grade,sec,role==="student"?tid:undefined,users);
+    if(role==="teacher"){
+      u.grade=encodeClasses(tClasses);
+      u.section="";
+    }
+    setUsers(p=>[u,...p]);
+    setUmsg(`✅ ${u.username} / ${u.password}${role==="teacher"?` • ${tClasses.length} classes`:""}`);
+    setName("");
+  }
+  function saveTeacherClasses(list:ClassRef[]){
+    if(!editClassesFor) return;
+    const id=editClassesFor.id;
+    setUsers(prev=>prev.map(it=>it.id===id?{...it,grade:encodeClasses(list),section:""}:it));
+  }
   function createComp(e:React.FormEvent){e.preventDefault();if(!nAr.trim()||!nEn.trim()){setCmsg("Enter both names");return}
     const code=Math.random().toString(36).slice(2,8).toUpperCase();
     const t=rulesForPreset(selPreset&&selPreset!=="custom"?Number(selPreset):undefined,nAr,nEn);
@@ -1856,19 +1977,11 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
     <div className="relative min-h-screen bg-[linear-gradient(180deg,#0d1230,#111a45,#0d1230)] text-white"><Bg/>
       <header className="sticky top-0 z-20 border-b border-white/10 bg-[#0f1535]/80 backdrop-blur-xl px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-4"><Logo s/><div><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#FDB51F]">Administration Portal • بوابة الإدارة</div><h1 className="text-xl font-black">User & Competition Management</h1></div></div>
-        <div className="flex gap-3"><button onClick={()=>{setNewPw(adminPw);setShowPwModal(true)}} className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-bold text-white hover:bg-white/10">🔑 Password</button><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-bold text-white hover:bg-white/10">Home</button></div>
+        <div className="flex gap-3"><button onClick={()=>setTab("security")} className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-bold text-white hover:bg-white/10">🔑 Password</button><button onClick={onBack} className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-bold text-white hover:bg-white/10">Home</button></div>
       </header>
-      {showPwModal&&(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-[#0f1535] p-6 shadow-2xl">
-            <h3 className="text-xl font-black text-white mb-2">Change Admin Password</h3><p className="text-sm text-white/50 mb-5">تغيير كلمة سر الإدارة</p>
-            <div className="space-y-4"><Inp value={newPw} onChange={e=>setNewPw(e.target.value)} placeholder="New Password"/><div className="flex gap-3"><button onClick={()=>setShowPwModal(false)} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-bold text-white/60">Cancel</button><button onClick={()=>{setAdminPw(newPw.trim());setShowPwModal(false)}} className="flex-1 rounded-2xl bg-[#FDB51F] py-3 text-sm font-black text-slate-950">Save ✓</button></div></div>
-          </div>
-        </div>
-      )}
       <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex flex-wrap gap-2 mb-8 bg-white/5 border border-white/10 rounded-2xl p-1.5 overflow-x-auto">
-          {([["users","👥 Users"],["export","📊 Excel & Cards"],["comps","🏆 Competitions"],["archive","🗄️ Archive • الأرشيف"]] as const).map(([k,l])=>(
+          {([["users","👥 Users"],["export","📊 Excel & Cards"],["comps","🏆 Competitions"],["archive","🗄️ Archive • الأرشيف"],["security","🔑 Security"]] as const).map(([k,l])=>(
             <button key={k} onClick={()=>setTab(k)} className={cn("rounded-xl px-5 py-2.5 text-sm font-black whitespace-nowrap transition",tab===k?"bg-[#FDB51F] text-slate-950":"text-white/50 hover:text-white")}>{l}</button>
           ))}
         </div>
@@ -1882,9 +1995,28 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
                   <div><FL>Full Name</FL><Inp value={name} onChange={e=>setName(e.target.value)} placeholder="Name"/></div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><FL>Role</FL><Sel value={role} onChange={e=>setRole(e.target.value as Role)}><option value="student">Student</option><option value="teacher">Teacher</option></Sel></div>
-                    <div><FL>Grade</FL><Sel value={grade} onChange={e=>setGrade(e.target.value)}>{GRADES.map(g=><option key={g} value={g}>{g}</option>)}</Sel></div>
+                    {role==="student"&&<div><FL>Grade</FL><Sel value={grade} onChange={e=>setGrade(e.target.value)}>{GRADES.map(g=><option key={g} value={g}>{g}</option>)}</Sel></div>}
                     {role==="student"&&<div><FL>Section</FL><Sel value={sec} onChange={e=>setSec(e.target.value)}>{_SECTIONS.map(s=><option key={s} value={s}>{s}</option>)}</Sel></div>}
                   </div>
+                  {role==="teacher"&&(
+                    <div className="rounded-2xl border border-[#1697E8]/25 bg-[#1697E8]/10 p-4">
+                      <p className="mb-2 text-xs font-black text-sky-200">🏫 الصفوف التي يدرّسها المعلم • Classes taught</p>
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        {tClasses.map(c=>(
+                          <span key={`${c.grade}-${c.section}`} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/25 px-3 py-1.5 text-xs font-bold text-white/85">
+                            {classLabel(c)}
+                            <button type="button" onClick={()=>setTClasses(prev=>prev.filter(x=>!(x.grade===c.grade&&x.section===c.section)))} className="text-rose-300 hover:text-rose-200">✕</button>
+                          </span>
+                        ))}
+                        {tClasses.length===0&&<span className="text-xs font-bold text-white/35">لم تُضف صفوف بعد • No classes added</span>}
+                      </div>
+                      <div className="grid grid-cols-[1fr_auto_auto] items-end gap-2">
+                        <div><FL>Grade</FL><Sel value={tGrade} onChange={e=>setTGrade(e.target.value)}>{GRADES.map(x=><option key={x} value={x}>{x}</option>)}</Sel></div>
+                        <div><FL>Section</FL><Sel value={tSec} onChange={e=>setTSec(e.target.value)}>{_SECTIONS.map(x=><option key={x} value={x}>{x}</option>)}</Sel></div>
+                        <button type="button" onClick={()=>setTClasses(prev=>prev.some(c=>c.grade===tGrade&&c.section===tSec)?prev:[...prev,{grade:tGrade,section:tSec}])} className="rounded-2xl bg-[#1697E8] px-4 py-3 text-sm font-black text-white hover:bg-sky-400">＋</button>
+                      </div>
+                    </div>
+                  )}
                   {role==="student"&&<div><FL>Assigned Teacher</FL><Sel value={tid} onChange={e=>setTid(e.target.value)}><option value="">Select…</option>{teachers.map(t=><option key={t.id} value={t.id}>{t.fullName} — {t.grade}</option>)}</Sel></div>}
                   {umsg&&<div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">{umsg}</div>}
                   <button type="submit" className="w-full rounded-2xl bg-sky-500 text-white font-black py-3.5 hover:bg-sky-400 shadow-lg">Save Account</button>
@@ -1902,8 +2034,8 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
               <div className="space-y-3">{users.filter(u=>u.id!=="admin").map(u=>(
                 <div key={u.id} className={cn("rounded-2xl border p-4 transition",u.active?"border-white/10 bg-black/20":"border-rose-500/20 bg-rose-500/5 opacity-60")}>
                   <div className="flex justify-between items-start gap-2">
-                    <div className="min-w-0"><div className="font-black text-white flex items-center gap-2 flex-wrap">{u.fullName}{!u.active&&<span className="text-[9px] bg-rose-500 text-white px-2 py-0.5 rounded-full uppercase">Disabled</span>}</div><div className="flex flex-wrap gap-1.5 mt-2"><Pill t={u.role==="teacher"?"green":"blue"}>{u.role}</Pill><Pill t="gold">{u.grade}</Pill>{u.role==="student"&&<Pill t="pink">{u.section}</Pill>}{u.role==="student"&&u.teacherId&&<Pill t="slate">Teacher: {teachers.find(t=>t.id===u.teacherId)?.fullName||"—"}</Pill>}</div><div className="mt-1.5 text-xs text-white/40 font-bold">👤 {u.username} / 🔑 {u.password}</div></div>
-                    <div className="flex flex-col gap-1.5 shrink-0"><button onClick={()=>setUsers(prev=>prev.map(it=>it.id===u.id?{...it,active:!it.active}:it))} className={cn("rounded-xl px-3 py-2 text-xs font-black transition",u.active?"bg-rose-500 text-white hover:bg-rose-600":"bg-emerald-500 text-white hover:bg-emerald-600")}>{u.active?"Disable":"Activate"}</button><button onClick={()=>{if(window.confirm(`Remove "${u.fullName}" permanently?`)){ setUsers(prev=>prev.filter(it=>it.id!==u.id)); }}} className="rounded-xl px-3 py-1.5 text-[10px] font-black bg-black/30 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition">🗑 Remove</button></div>
+                    <div className="min-w-0"><div className="font-black text-white flex items-center gap-2 flex-wrap">{u.fullName}{!u.active&&<span className="text-[9px] bg-rose-500 text-white px-2 py-0.5 rounded-full uppercase">Disabled</span>}</div><div className="flex flex-wrap gap-1.5 mt-2"><Pill t={u.role==="teacher"?"green":"blue"}>{u.role}</Pill>{u.role==="student"&&<Pill t="gold">{u.grade}</Pill>}{u.role==="student"&&<Pill t="pink">{u.section}</Pill>}{u.role==="teacher"&&decodeClasses(u).map(c=><Pill key={`${c.grade}-${c.section}`} t="green">🏫 {classLabel(c)}</Pill>)}{u.role==="student"&&u.teacherId&&<Pill t="slate">Teacher: {teachers.find(t=>t.id===u.teacherId)?.fullName||"—"}</Pill>}</div><div className="mt-1.5 text-xs text-white/40 font-bold">👤 {u.username} / 🔑 {u.password}</div></div>
+                    <div className="flex flex-col gap-1.5 shrink-0">{u.role==="teacher"&&<button onClick={()=>setEditClassesFor(u)} className="rounded-xl px-3 py-1.5 text-[10px] font-black bg-sky-500/20 border border-sky-400/30 text-sky-200 hover:bg-sky-500/30 transition">🏫 Classes</button>}<button onClick={()=>setUsers(prev=>prev.map(it=>it.id===u.id?{...it,active:!it.active}:it))} className={cn("rounded-xl px-3 py-2 text-xs font-black transition",u.active?"bg-rose-500 text-white hover:bg-rose-600":"bg-emerald-500 text-white hover:bg-emerald-600")}>{u.active?"Disable":"Activate"}</button><button onClick={()=>{if(window.confirm(`Remove "${u.fullName}" permanently?`)){ setUsers(prev=>prev.filter(it=>it.id!==u.id)); }}} className="rounded-xl px-3 py-1.5 text-[10px] font-black bg-black/30 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition">🗑 Remove</button></div>
                   </div>
                 </div>
               ))}</div>
@@ -1957,6 +2089,66 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
                   </div>
                 </div>
               ))}</div>
+            </div>
+          </div>
+        )}
+
+        {editClassesFor&&<TeacherClassesModal teacher={editClassesFor} onSave={saveTeacherClasses} onClose={()=>setEditClassesFor(null)}/>}
+
+
+        {tab==="security"&&(
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
+              <h2 className="text-xl font-black mb-1 text-white">🔑 Change Admin Password</h2>
+              <p className="text-sm text-white/45 mb-5">تغيير كلمة مرور الإدارة — استخدم كلمة المرور الحالية أو رمز الاستعادة.</p>
+              <div className="space-y-3">
+                <div><FL>Current password OR recovery code • كلمة المرور الحالية أو رمز الاستعادة</FL><Inp type="password" value={pwOld} onChange={e=>{setPwOld(e.target.value);setPwErr("");setPwMsg("")}} placeholder="•••••••••"/></div>
+                <div><FL>New password • كلمة المرور الجديدة</FL><Inp type="password" value={pwNew} onChange={e=>{setPwNew(e.target.value);setPwErr("");setPwMsg("")}} placeholder="6+ characters"/></div>
+                <div><FL>Confirm new password • تأكيد كلمة المرور</FL><Inp type="password" value={pwConfirm} onChange={e=>{setPwConfirm(e.target.value);setPwErr("");setPwMsg("")}} placeholder="Repeat the new password"/></div>
+                {pwErr&&<div className="rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-200">{pwErr}</div>}
+                {pwMsg&&<div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm font-bold text-emerald-200">{pwMsg}</div>}
+                <button type="button" onClick={()=>{
+                  setPwErr("");setPwMsg("");
+                  const old=pwOld.trim();
+                  if(!(old===adminPw || old===ADMIN_RECOVERY_CODE)){setPwErr("كلمة المرور الحالية أو رمز الاستعادة غير صحيح • Wrong password or recovery code");return}
+                  if(pwNew.trim().length<6){setPwErr("كلمة المرور الجديدة قصيرة (6 أحرف على الأقل) • New password too short");return}
+                  if(pwNew.trim()!==pwConfirm.trim()){setPwErr("تأكيد كلمة المرور غير مطابق • Passwords do not match");return}
+                  setAdminPw(pwNew.trim());
+                  setPwOld("");setPwNew("");setPwConfirm("");
+                  setPwMsg("✅ تم تغيير كلمة المرور وحفظها سحابياً • Password updated and synced");
+                }} className="w-full rounded-2xl bg-[#FDB51F] py-4 text-sm font-black text-slate-950 hover:bg-[#F7C84A] shadow-lg">Save New Password ✓</button>
+              </div>
+            </div>
+            <div className="space-y-6">
+              <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
+                <h3 className="text-lg font-black mb-1 text-white">🆘 Forgot the password?</h3>
+                <p className="text-sm text-white/45 mb-4">نسيت كلمة المرور؟ استخدم رمز الاستعادة أو أرسله إلى بريد الإدارة.</p>
+                <div className="rounded-2xl border border-[#FDB51F]/25 bg-[#FDB51F]/10 p-4">
+                  <p className="text-[11px] font-black uppercase tracking-widest text-[#FFE29A]">Recovery code • رمز الاستعادة</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <code className="flex-1 rounded-xl bg-black/30 px-3 py-2 text-sm font-black tracking-widest text-white">{showCode?ADMIN_RECOVERY_CODE:"••••••••••••"}</code>
+                    <button onClick={()=>setShowCode(v=>!v)} className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-[11px] font-black text-white/70 hover:bg-white/10">{showCode?"Hide":"Show"}</button>
+                    <button onClick={()=>{try{navigator.clipboard.writeText(ADMIN_RECOVERY_CODE)}catch{}}} className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-[11px] font-black text-white/70 hover:bg-white/10">📋 Copy</button>
+                  </div>
+                </div>
+                <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-[11px] font-bold text-white/50">Admin email • بريد الإدارة</p>
+                  <p className="mb-3 text-sm font-black text-white break-all">{ADMIN_EMAIL}</p>
+                  <button onClick={()=>{
+                    const body=[`GWA Champions — Admin access details`,`بيانات دخول الإدارة`,``,`Recovery code: ${ADMIN_RECOVERY_CODE}`,`Current password: ${adminPw}`,``,`Portal: https://gwa-champions-platform.vercel.app`].join("\n");
+                    window.location.href=`mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent("GWA Champions — Admin password / recovery code")}&body=${encodeURIComponent(body)}`;
+                  }} className="w-full rounded-2xl bg-[#1697E8] py-3.5 text-sm font-black text-white hover:bg-sky-400">📧 Send password &amp; code to {ADMIN_EMAIL}</button>
+                  <p className="mt-2 text-[10px] leading-5 text-white/30">يفتح برنامج البريد لديك برسالة جاهزة إلى بريد الإدارة تحتوي كلمة المرور الحالية ورمز الاستعادة — أرسلها لتصل إليك عند نسيانها.</p>
+                </div>
+              </div>
+              <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
+                <h3 className="text-base font-black mb-2 text-white">ℹ️ Notes • ملاحظات</h3>
+                <ul className="space-y-1.5 text-[12px] leading-6 text-white/50">
+                  <li>• كلمة مرور الإدارة محفوظة سحابياً، فتعمل على كل الأجهزة.</li>
+                  <li>• رمز الاستعادة ثابت ويُستخدم فقط عند نسيان الكلمة القديمة.</li>
+                  <li>• بعد التغيير استخدم الكلمة الجديدة للدخول إلى بوابة الإدارة.</li>
+                </ul>
+              </div>
             </div>
           </div>
         )}
