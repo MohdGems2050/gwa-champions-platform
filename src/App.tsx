@@ -316,7 +316,7 @@ function classesText(u:any){ const list=decodeClasses(u); return list.length?lis
 
 /* ═══════ ADMIN RECOVERY ═══════ */
 const ADMIN_RECOVERY_CODE = "MohdRoshdi@2050";
-const ADMIN_EMAIL = "M.roshdi_gwa@gemsedu.com";
+const ADMIN_EMAIL = "Mohdarabichod3@gmail.com";
 
 /* ═══════ SUPABASE HELPERS ═══════ */
 function useVideoUrl(path: string): string {
@@ -2306,6 +2306,7 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onB
                     window.location.href=`mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent("GWA Champions — Admin password / recovery code")}&body=${encodeURIComponent(body)}`;
                   }} className="w-full rounded-2xl bg-[#1697E8] py-3.5 text-sm font-black text-white hover:bg-sky-400">📧 Send password &amp; code to {ADMIN_EMAIL}</button>
                   <p className="mt-2 text-[10px] leading-5 text-white/30">يفتح برنامج البريد لديك برسالة جاهزة إلى بريد الإدارة تحتوي كلمة المرور الحالية ورمز الاستعادة — أرسلها لتصل إليك عند نسيانها.</p>
+                  <p className="mt-2 rounded-xl border border-[#1697E8]/20 bg-[#1697E8]/10 px-3 py-2 text-[10px] font-bold leading-5 text-sky-100/80">لإرسال تلقائي بدون فتح بريدك: سجّل الدخول إلى Resend بنفس هذا البريد وأضف مفتاح RESEND_API_KEY في Vercel.</p>
                 </div>
               </div>
               <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
