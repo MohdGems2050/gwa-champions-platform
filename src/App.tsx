@@ -1131,7 +1131,16 @@ function TeacherPortalPage({teacher,users,works,comps,setWorks,onUpload,onBack}:
    MAIN APP
    ════════════════════════════════════ */
 export default function App(){
-  const[view,setView]=useState<View>("home");
+  const[view,setView]=useState<View>(()=>{
+    /* QR codes on the ID cards deep-link straight into the matching portal */
+    try{
+      const portal = new URLSearchParams(window.location.search).get("portal");
+      if(portal==="student") return "studentLogin";
+      if(portal==="teacher") return "teacherLogin";
+      if(portal==="admin") return "adminLogin";
+    }catch{}
+    return "home";
+  });
   const[users,setUsers]=useState<User[]>(()=>ld(SK.u,seedU));
   const[comps,setComps]=useState<Comp[]>(()=>ld(SK.c,seedC));
   const[works,setWorks]=useState<Work[]>(()=>ld(SK.w,seedW));
@@ -1298,11 +1307,14 @@ export default function App(){
         }
         const {data:dbCerts} = await supabase.from("certificates").select("*");
         if(dbCerts && dbCerts.length > 0){
-          const mapped = dbCerts.map((c:any)=>({
-            id:c.id, workId:c.work_id, studentId:c.student_id, compId:c.comp_id,
-            compName:c.comp_name, score:c.score, rank:c.rank, grade:c.grade,
-            section:c.section, issuedAt:c.issued_at
-          }));
+          const mapped = dbCerts
+            .filter((c:any)=>!String(c.id).startsWith("__"))   /* system rows are not certificates */
+            .filter((c:any)=>Boolean(c.comp_name) && c.comp_name!=="deleted")
+            .map((c:any)=>({
+              id:c.id, workId:c.work_id, studentId:c.student_id, compId:c.comp_id,
+              compName:c.comp_name, score:c.score, rank:c.rank, grade:c.grade,
+              section:c.section, issuedAt:c.issued_at
+            }));
           setCerts(prev=>{
             const ids=new Set(mapped.map((c:any)=>c.id));
             return [...mapped,...prev.filter(c=>!ids.has(c.id))];
@@ -2291,7 +2303,13 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onD
   }
 
   async function generateCards(){
-    const qrData:Record<string,string>={};for(const u of users){try{qrData[u.id]=await QRCode.toDataURL(`GWA|${u.fullName}|${u.username}|${u.password}`,{width:140,margin:1})}catch{qrData[u.id]=""}}
+    const portalBase = `${window.location.origin}/`;
+    const qrData:Record<string,string>={};
+    for(const u of users){
+      /* the QR opens the portal that matches the account type — no credentials inside */
+      const target = u.role==="teacher" ? `${portalBase}?portal=teacher` : `${portalBase}?portal=student`;
+      try{ qrData[u.id]=await QRCode.toDataURL(target,{width:200,margin:1,errorCorrectionLevel:"M"}) }catch{ qrData[u.id]="" }
+    }
     const logoBase64=await logoToBase64();
     const win=window.open("","_blank");if(!win)return;
     const cards=users.map((u,i)=>{const isT=u.role==="teacher";const qr=qrData[u.id]||"";return`<div class="card"><div class="ci"><div class="ch"><div class="hl">${logoBase64?`<img src="${logoBase64}" class="logo" alt="GEMS"/>`:`<div class="logo-placeholder">GWA</div>`}<div><div class="pen">GWA Arabic & Islamic Champions</div><div class="par" style="color:${isT?"#1697E8":"#FDB51F"}">${isT?"Teacher":"Student"} Login</div></div></div>${qr?`<img src="${qr}" class="qr"/>`:""}</div><hr class="div"/><div class="inf"><div>Name : <b>${u.fullName}</b></div><div>ID : <b>${i+1}</b></div><div>Grade : <b>${u.grade}</b></div>${u.role==="student"?`<div>Section : <b>${u.section}</b></div>`:""}</div><div class="badge" style="background:${isT?"#1697E8":"#FDB51F"};color:${isT?"#fff":"#111"}">${u.role}</div><div class="creds"><div class="url">gwa.gems-world-academy.ae</div><div>• Username: <span class="hl2">${u.username}</span></div><div>• Password: <span class="hl2">${u.password}</span></div></div></div></div>`}).join("");
@@ -2668,47 +2686,88 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
   const selComp=avail.find(c=>c.id===cid);
   
   function printCert(cert:Cert){
-    const win=window.open("","_blank","width=900,height=700");
+    const win=window.open("","_blank","width=1100,height=800");
     if(!win)return;
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Certificate</title>
+    const safe=(v:any)=>String(v??"").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    const medal=MEDALS[cert.rank-1]||"🏅";
+    const serial=`GWA-${String(cert.issuedAt||"").replace(/-/g,"")}-${String(cert.id).slice(-4).toUpperCase()}`;
+    win.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+    <title>Certificate — ${safe(student.fullName)}</title>
     <style>
-      *{box-sizing:border-box;margin:0;padding:0}body{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f0f0f0;font-family:"Segoe UI",Arial,sans-serif;padding:20px}
-      .cert{width:800px;background:#fff;border:4px solid #1F2E76;border-radius:24px;padding:48px;text-align:center;position:relative;overflow:hidden}
-      .cert::before{content:"";position:absolute;top:0;left:0;right:0;height:8px;background:linear-gradient(90deg,#FDB51F,#1697E8,#10B09B,#E21455)}
-      .logo{width:80px;margin:0 auto 16px}
-      .school{font-size:14px;color:#1F2E76;font-weight:700;letter-spacing:3px;text-transform:uppercase}
-      .platform{font-size:12px;color:#FDB51F;font-weight:700;margin-top:4px}
-      h1{font-size:36px;color:#1F2E76;margin:24px 0 8px;font-weight:900}
-      h2{font-size:20px;color:#555;font-weight:600}
-      .name{font-size:32px;color:#1F2E76;font-weight:900;margin:24px 0;padding:12px 0;border-top:2px solid #eee;border-bottom:2px solid #eee}
-      .details{font-size:16px;color:#555;line-height:2}
-      .rank{display:inline-block;background:linear-gradient(135deg,#FDB51F,#E21455);color:#fff;padding:8px 24px;border-radius:999px;font-size:18px;font-weight:900;margin:20px 0}
-      .score{font-size:48px;font-weight:900;color:#1F2E76;margin:16px 0}
-      .footer{font-size:11px;color:#aaa;margin-top:32px}
-      .tools{text-align:center;margin-bottom:16px}
-      .tools button{padding:10px 20px;border-radius:999px;border:none;background:#FDB51F;font-weight:700;cursor:pointer;margin:0 4px}
-      @media print{.tools{display:none}body{background:#fff;padding:0}}
+      @page{size:A4 landscape;margin:0}
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;background:#eef1f6;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:18px}
+      .sheet{width:1050px;max-width:100%;aspect-ratio:1.414/1;background:#fffdf8;border:1px solid #d8c9a6;border-radius:10px;position:relative;overflow:hidden;box-shadow:0 24px 60px rgba(15,30,70,.18);display:flex;align-items:center;justify-content:center}
+      .sheet:before{content:"";position:absolute;inset:14px;border:3px solid #1f2e76;border-radius:6px;pointer-events:none}
+      .sheet:after{content:"";position:absolute;inset:22px;border:1px solid #c9a227;border-radius:4px;pointer-events:none}
+      .glow{position:absolute;width:420px;height:420px;border-radius:50%;filter:blur(80px);opacity:.20;pointer-events:none}
+      .g1{background:#1697e8;top:-160px;left:-120px}.g2{background:#fdb51f;bottom:-180px;right:-120px}
+      .inner{position:relative;z-index:2;width:100%;padding:52px 66px;text-align:center}
+      .logo{height:62px;width:auto;object-fit:contain;margin:0 auto 10px;display:block}
+      .school{font-size:12px;letter-spacing:.34em;text-transform:uppercase;color:#1f2e76;font-weight:800}
+      .ar-school{font-size:13px;color:#6b7280;margin-top:3px;font-weight:600}
+      .rule{width:70px;height:3px;background:linear-gradient(90deg,#fdb51f,#e21455);margin:16px auto}
+      .kicker{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:#1697e8;font-weight:800}
+      h1{font-size:40px;line-height:1.1;color:#1f2e76;font-weight:900;margin:8px 0 2px;letter-spacing:-.5px}
+      .ar-title{font-size:20px;color:#b58a1b;font-weight:800;margin-bottom:6px}
+      .presented{font-size:13px;color:#6b7280;margin-top:14px;letter-spacing:.06em}
+      .name{font-size:42px;color:#12224f;font-weight:900;margin:8px 0 4px;letter-spacing:-.5px}
+      .meta{font-size:13px;color:#6b7280;font-weight:600}
+      .award{margin:20px auto 0;max-width:640px;font-size:15px;line-height:1.7;color:#374151}
+      .award b{color:#1f2e76}
+      .badges{display:flex;gap:14px;justify-content:center;margin-top:20px}
+      .badge{border-radius:999px;padding:9px 22px;font-size:13px;font-weight:900;letter-spacing:.04em}
+      .rank{background:linear-gradient(135deg,#fdb51f,#e21455);color:#fff;box-shadow:0 8px 20px rgba(226,20,85,.22)}
+      .score{background:#f1f5fb;color:#1f2e76;border:1px solid #d6e2f2}
+      .foot{margin-top:34px;display:flex;align-items:flex-end;justify-content:space-between;gap:24px;text-align:left}
+      .sig{flex:1}
+      .sig .line{height:1px;background:#cbd5e1;margin-bottom:6px}
+      .sig .who{font-size:12px;font-weight:800;color:#1f2e76}
+      .sig .role{font-size:10px;color:#9ca3af;letter-spacing:.12em;text-transform:uppercase}
+      .seal{width:104px;height:104px;border-radius:50%;border:3px double #c9a227;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#8a6d1a;font-size:9px;font-weight:800;letter-spacing:.1em;text-align:center;line-height:1.35;background:radial-gradient(circle,#fffaf0,#fdf3dc)}
+      .seal .big{font-size:20px;color:#c9a227}
+      .serial{flex:1;text-align:right;font-size:10px;color:#9ca3af;letter-spacing:.08em;line-height:1.7}
+      .serial b{color:#4b5563}
+      .tools{text-align:center;margin-bottom:14px}
+      .tools button{padding:11px 26px;border-radius:999px;border:0;background:#1f2e76;color:#fff;font-weight:800;cursor:pointer;margin:0 5px;font-size:13px}
+      .tools button.gold{background:#fdb51f;color:#111}
+      @media print{.tools{display:none}body{background:#fff;padding:0}.sheet{box-shadow:none;border-radius:0;width:100%;height:100vh}}
     </style></head><body>
-    <div>
-      <div class="tools"><button onclick="window.print()">🖨️ Print</button><button onclick="window.close()">Close</button></div>
-      <div class="cert">
-        <img src="/gems-logo.png" class="logo" alt="GEMS"/>
-        <div class="school">GEMS World Academy Dubai</div>
-        <div class="platform">GWA Arabic & Islamic Champions<br/>أبطال اللغة العربية والتربية الإسلامية</div>
-        <h1>Certificate of Excellence</h1>
-        <h2>شهادة تقدير وتميز</h2>
-        <div class="name">${cert.compName.replace(/</g,"&lt;")}</div>
-        <div class="details">
-          Awarded to: <strong>${student.fullName.replace(/</g,"&lt;")}</strong><br/>
-          ${cert.grade} • Section ${cert.section}<br/>
+      <div>
+        <div class="tools">
+          <button class="gold" onclick="window.print()">🖨️ Print / Save as PDF</button>
+          <button onclick="window.close()">Close</button>
         </div>
-        <div class="rank">${MEDALS[cert.rank-1]||"#"+cert.rank} Rank #${cert.rank}</div>
-        <div class="score">${cert.score}/100</div>
-        <div class="footer">
-          Issued: ${cert.issuedAt} • GWA Champions Platform • أكاديمية جيمس العالمية
+        <div class="sheet">
+          <span class="glow g1"></span><span class="glow g2"></span>
+          <div class="inner">
+            <img class="logo" src="/gems-logo.png" alt="GEMS"/>
+            <div class="school">GEMS World Academy Dubai</div>
+            <div class="ar-school" dir="rtl">أكاديمية جيمس العالمية — دبي</div>
+            <div class="rule"></div>
+            <div class="kicker">Arabic &amp; Islamic Champions</div>
+            <h1>Certificate of Appreciation</h1>
+            <div class="ar-title" dir="rtl">شهادة تقدير</div>
+            <div class="presented">This certificate is proudly presented to</div>
+            <div class="name">${safe(student.fullName)}</div>
+            <div class="meta">${safe(cert.grade)} • Section ${safe(cert.section)}</div>
+            <div class="award">
+              in recognition of outstanding participation in <b>${safe(cert.compName)}</b><br/>
+              <span dir="rtl">تقديراً لمشاركتها المتميزة في المسابقة المذكورة أعلاه، مع أطيب التمنيات بدوام التفوق.</span>
+            </div>
+            <div class="badges">
+              <span class="badge rank">${medal} Rank #${cert.rank}</span>
+              <span class="badge score">Score ${cert.score}/100</span>
+            </div>
+            <div class="foot">
+              <div class="sig"><div class="line"></div><div class="who">Arabic &amp; Islamic Department</div><div class="role">Issuing authority</div></div>
+              <div class="seal"><span class="big">★</span>GWA<br/>CHAMPIONS</div>
+              <div class="sig"><div class="line"></div><div class="who">Ms Heba</div><div class="role">Teacher in charge</div></div>
+              <div class="serial">Issued <b>${safe(cert.issuedAt)}</b><br/>Serial <b>${serial}</b><br/>gwa-champions-platform.vercel.app</div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
     </body></html>`);
     win.document.close();
   }
@@ -2739,7 +2798,24 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
           </div></div>
         )}
         {sTab==="submissions"&&(<div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">{myWorks.length===0&&<div className="md:col-span-3 rounded-3xl border border-white/10 bg-white/5 p-12 text-center text-white/40">No submissions yet</div>}{myWorks.map(w=>{const ev=evals.find(e=>e.workId===w.id);const co=comps.find(c=>c.id===w.competitionId);return(<article key={w.id} className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden"><SecureVideo path={w.videoUrl} poster={w.thumb} controls className="w-full aspect-video object-cover"/><div className="p-4"><div className="text-[10px] font-black uppercase text-sky-300">{co?.nameEn}</div><h3 className="text-base font-black text-white mt-1">{w.title}</h3><div className="mt-3 flex flex-wrap gap-2"><StatusPill w={w}/>{ev?<Pill t="green">✅ Score: {tot(ev.scores)}/100</Pill>:null}</div>{!isApproved(w)&&<p className="mt-2 text-[11px] leading-5 text-white/40" dir="rtl">هذه معاينة خاصة لك فقط. لن يظهر الفيديو للجميع حتى يعتمده أحد المعلمين.</p>}</div></article>);})}</div>)}
-        {sTab==="certs"&&(<div className="space-y-6">{myCerts.length===0&&<div className="rounded-3xl border border-white/10 bg-white/5 p-12 text-center"><p className="text-4xl mb-3">📜</p><p className="text-white/40">No certificates yet.</p></div>}{myCerts.map(cert=><article key={cert.id} className="rounded-3xl border border-[#FDB51F]/30 bg-gradient-to-r from-[#FDB51F]/10 to-[#0d1230] p-6 flex items-center gap-5 justify-between flex-wrap"><div className="flex items-center gap-4"><div className="text-4xl">{MEDALS[cert.rank-1]||"🏅"}</div><div><h3 className="text-xl font-black text-white">{cert.compName}</h3><div className="flex gap-2 mt-2"><Pill t="gold">Rank #{cert.rank}</Pill><Pill t="green">Score: {cert.score}/100</Pill><Pill t="blue">{cert.grade}</Pill></div></div></div><button onClick={()=>printCert(cert)} className="bg-[#FDB51F] text-slate-950 px-5 py-3 rounded-2xl font-black">Download PDF</button></article>)}</div>)}
+        {sTab==="certs"&&(<div className="space-y-6">{myCerts.length===0&&<div className="rounded-3xl border border-white/10 bg-white/5 p-12 text-center"><p className="text-4xl mb-3">📜</p><p className="text-white/40">No certificates yet.</p></div>}{myCerts.map(cert=>(<article key={cert.id} className="group overflow-hidden rounded-3xl border border-[#FDB51F]/25 bg-[linear-gradient(135deg,rgba(253,181,31,0.12),rgba(13,18,48,0.9))]">
+          <div className="flex flex-wrap items-center justify-between gap-4 p-5 sm:p-6">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-white/10 text-3xl ring-1 ring-[#FDB51F]/30">{MEDALS[cert.rank-1]||"🏅"}</div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#FDB51F]">Certificate of Appreciation • شهادة تقدير</p>
+                <h3 className="mt-1 truncate text-lg font-black text-white">{cert.compName}</h3>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Pill t="gold">Rank #{cert.rank}</Pill>
+                  <Pill t="green">Score {cert.score}/100</Pill>
+                  <Pill t="blue">{cert.grade}</Pill>
+                  <Pill t="slate">{cert.issuedAt}</Pill>
+                </div>
+              </div>
+            </div>
+            <button onClick={()=>printCert(cert)} className="rounded-2xl bg-[#FDB51F] px-5 py-3 text-sm font-black text-slate-950 shadow-lg shadow-[#FDB51F]/20 transition hover:bg-[#F7C84A]">🖨️ View &amp; Print</button>
+          </div>
+        </article>))}</div>)}
       </main>
     </div>
   );
