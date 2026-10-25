@@ -205,7 +205,8 @@ function sv(k:string,v:any){
          as rows with the id prefix "__comp__" and the JSON payload in comp_name.
          This makes the competition list identical on every device. */
       if(k===SK.c && Array.isArray(v)){
-        const payload = v.map((c:any)=>({
+        const live = v.filter((c:any)=> c && c.id && c.evalCode!=="__placeholder__" && !deletedComps.has(String(c.id)));
+        const payload = live.map((c:any)=>({
           id:"__comp__"+String(c.id),
           work_id:"__comp__",
           student_id:"",
@@ -227,7 +228,7 @@ function sv(k:string,v:any){
         const {data:cloudCompRows,error:listErr} = await supabase.from("certificates").select("id").like("id","__comp__%");
         if(!listErr && Array.isArray(cloudCompRows)){
           const keep = new Set(payload.map((r:any)=>r.id));
-          const stale = cloudCompRows.map((r:any)=>String(r.id)).filter((id:string)=>!keep.has(id) && id!=="__compmeta__");
+          const stale = cloudCompRows.map((r:any)=>String(r.id)).filter((id:string)=>!keep.has(id) && id!=="__compmeta__" && !id.startsWith(TOMB_PREFIX));
           for(const id of stale){
             await supabase.from("certificates").delete().eq("id",id);
           }
@@ -346,6 +347,33 @@ const ADMIN_EMAIL = "mohdarabichod3@gmail.com";       /* primary • البري�
 const ADMIN_EMAIL_ALT = "m.roshdi_gwa@gemsedu.com";   /* alternate • بريد المدرسة */
 const ADMIN_EMAILS = [ADMIN_EMAIL, ADMIN_EMAIL_ALT];
 const isAdminEmail = (value:string)=> ADMIN_EMAILS.includes(String(value||"").trim().toLowerCase());
+
+
+/* ═══════ DELETED COMPETITIONS (tombstones) ═══════
+   A deleted competition must never come back. Every deletion writes a tombstone row
+   (id "__compdel__<compId>") in the cloud and is remembered in this module-level set,
+   so no device can re-upload it or render a placeholder for it. */
+const deletedComps = new Set<string>();
+const TOMB_PREFIX = "__compdel__";
+
+async function cloudDeleteCompetition(compId:string, workIds:string[]){
+  deletedComps.add(String(compId));
+  if(!isSupabaseConfigured) return;
+  try{
+    await supabase.from("certificates").upsert([{
+      id: TOMB_PREFIX + String(compId),
+      work_id:"__compdel__", student_id:"", comp_id:String(compId),
+      comp_name:"deleted", score:0, rank:0, grade:"", section:"",
+      issued_at: new Date().toISOString().slice(0,10)
+    }],{onConflict:"id"});
+    await supabase.from("certificates").delete().eq("id","__comp__"+String(compId));
+    if(workIds.length>0){
+      await supabase.from("evaluations").delete().in("work_id",workIds);
+      await supabase.from("evaluations").delete().in("id",workIds.map(id=>"__approval__"+id));
+    }
+    await supabase.from("works_cloud").delete().eq("competition_id",String(compId));
+  }catch(e){ console.warn("competition deletion sync skipped", e); }
+}
 
 /* ═══════ SUPABASE HELPERS ═══════ */
 function useVideoUrl(path: string): string {
@@ -1100,6 +1128,7 @@ export default function App(){
   const[users,setUsers]=useState<User[]>(()=>ld(SK.u,seedU));
   const[comps,setComps]=useState<Comp[]>(()=>ld(SK.c,seedC));
   const[works,setWorks]=useState<Work[]>(()=>ld(SK.w,seedW));
+  const[hydrated,setHydrated]=useState(false);
   const[evals,setEvals]=useState<Ev[]>(()=>ld(SK.e,[]));
   const[likes,setLikes]=useState<Like[]>(()=>ld(SK.l,[]));
   const[certs,setCerts]=useState<Cert[]>(()=>ld(SK.cert,[]));
@@ -1162,22 +1191,30 @@ export default function App(){
             const known=new Set(prev.map(c=>c.id));
             const missing=mapped.filter((w:any)=>w.competitionId&&!known.has(w.competitionId));
             if(missing.length===0) return prev;
-            const placeholders:Comp[]=Array.from(new Set(missing.map((w:any)=>String(w.competitionId)))).map(id=>({
-              id, nameEn:"Competition", nameAr:"مسابقة", logoUrl:"/gems-logo.png",
-              grades:[], rulesAr:"", rulesEn:"", startDate:"", closingDate:"", certDate:"",
-              started:true, archived:false, criteria:DEFAULT_CRITERIA, evalCode:""
-            }));
+            const placeholders:Comp[]=Array.from(new Set(missing.map((w:any)=>String(w.competitionId))))
+              .filter(id=>!deletedComps.has(id))
+              .map(id=>({
+                id, nameEn:"Competition", nameAr:"مسابقة", logoUrl:"/gems-logo.png",
+                grades:[], rulesAr:"", rulesEn:"", startDate:"", closingDate:"", certDate:"",
+                started:true, archived:false, criteria:DEFAULT_CRITERIA, evalCode:"__placeholder__"
+              }));
             const next=[...prev,...placeholders];
             try{ localStorage.setItem(SK.c,JSON.stringify(next)); }catch{}
             return next;
           });
         }
-        /* competitions mirrored in `certificates` (id __comp__*) */
+        /* competitions mirrored in `certificates` (id __comp__*), minus deleted ones */
         let cloudCompetitionsLoaded = false;
+        try{
+          const {data:tombRows} = await supabase.from("certificates").select("comp_id").like("id",TOMB_PREFIX+"%");
+          (tombRows||[]).forEach((r:any)=>{ if(r?.comp_id) deletedComps.add(String(r.comp_id)); });
+          if((tombRows||[]).length>0) console.info("deleted competitions remembered:", deletedComps.size);
+        }catch{}
         try{
           const {data:compRows,error:compErr} = await supabase.from("certificates").select("*").like("id","__comp__%");
           if(!compErr && Array.isArray(compRows)){
-            const list = compRows.filter((r:any)=>String(r.id).startsWith("__comp__") && String(r.id)!=="__compmeta__").map((r:any)=>{
+            const hasMeta = compRows.some((r:any)=>String(r.id)==="__compmeta__");
+            const list = compRows.filter((r:any)=>String(r.id).startsWith("__comp__") && String(r.id)!=="__compmeta__" && !deletedComps.has(String(r.comp_id||String(r.id).replace("__comp__","")))).map((r:any)=>{
               let meta:any={};
               try{ meta = r.comp_name ? JSON.parse(r.comp_name) : {}; }catch{ meta = {}; }
               return {
@@ -1196,6 +1233,11 @@ export default function App(){
               setComps(list);
               cloudCompetitionsLoaded = true;
               try{ localStorage.setItem(SK.c,JSON.stringify(list)); }catch{}
+            }else if(hasMeta){
+              /* the cloud is initialised and holds no competitions → every one was deleted */
+              setComps([]);
+              cloudCompetitionsLoaded = true;
+              try{ localStorage.setItem(SK.c,"[]"); }catch{}
             }
           }
         }catch(e){ console.warn("competition load skipped", e); }
@@ -1260,6 +1302,7 @@ export default function App(){
           });
         }
       } catch(err){ console.error("Supabase load error:", err); }
+      finally{ setHydrated(true); }
     }
     loadFromSupabase();
   },[]);
@@ -1281,8 +1324,8 @@ export default function App(){
     },400);
     return ()=>clearTimeout(id);
   },[adminPw]);
-  useEffect(()=>{sv(SK.c,comps)},[comps]);
-  useEffect(()=>{sv(SK.w,works)},[works]);
+  useEffect(()=>{ if(hydrated) sv(SK.c,comps) },[comps,hydrated]);
+  useEffect(()=>{ if(hydrated) sv(SK.w,works) },[works,hydrated]);
   useEffect(()=>{sv(SK.e,evals)},[evals]);
   useEffect(()=>{sv(SK.l,likes)},[likes]);
   useEffect(()=>{sv(SK.cert,certs)},[certs]);
@@ -1317,20 +1360,12 @@ export default function App(){
   if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw}
       onDeleteCompetition={c=>{
         const doomed=works.filter(w=>w.competitionId===c.id).map(w=>w.id);
+        void cloudDeleteCompetition(c.id, doomed);
         setWorks(p=>p.filter(w=>w.competitionId!==c.id));
         setEvals(p=>p.filter(e=>!doomed.includes(e.workId)));
         setCerts(p=>p.filter(x=>x.compId!==c.id));
         setArchive(p=>p.filter(a=>a.compId!==c.id));
         setComps(p=>p.filter(x=>x.id!==c.id));
-        try{
-          if(isSupabaseConfigured){
-            if(doomed.length>0){
-              supabase.from("evaluations").delete().in("work_id",doomed).then(()=>{});
-              supabase.from("evaluations").delete().in("id",doomed.map(id=>"__approval__"+id)).then(()=>{});
-            }
-            supabase.from("works_cloud").delete().eq("competition_id",c.id).then(()=>{});
-          }
-        }catch{}
       }}
       onBack={()=>setView("home")} />;
   if(view==="studentLogin")return<StudentLoginPage users={users} onBack={()=>setView("home")} onOk={s=>{ if(s.role==="teacher"){setCurrentTeacher(s);setCurrentStudent(s);setView("teacherPortal");} else {setCurrentStudent(s);setView("student");} }}/>;
@@ -1490,18 +1525,13 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
   const[delComp,setDelComp]=useState<Comp|null>(null);
   function deleteCompetitionForever(c:Comp){
     const doomed=works.filter(w=>w.competitionId===c.id).map(w=>w.id);
+    void cloudDeleteCompetition(c.id, doomed);   /* tombstone first: it can never return */
     setWorks(p=>p.filter(w=>w.competitionId!==c.id));
     setEvals(p=>p.filter(e=>!doomed.includes(e.workId)));
     setCerts(p=>p.filter(x=>x.compId!==c.id));
     setArchive(p=>p.filter(a=>a.compId!==c.id));
     setComps(p=>p.filter(x=>x.id!==c.id));
     setDelComp(null);
-    try{
-      if(isSupabaseConfigured){
-        supabase.from("evaluations").delete().in("work_id",doomed).then(()=>{});
-        supabase.from("works_cloud").delete().eq("competition_id",c.id).then(()=>{});
-      }
-    }catch{}
   }
   const active=useMemo(()=>comps.filter(c=>c.started&&!c.archived),[comps]);
   const[selCompId,setSelCompId]=useState<string|null>(null);
