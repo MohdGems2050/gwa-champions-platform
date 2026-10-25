@@ -25,7 +25,8 @@ export default async function handler(req, res) {
   }
   payload = payload || {};
 
-  const to = String(payload.to || "").trim();
+  /* Resend's testing mode compares the recipient case-sensitively, so normalise it */
+  const to = String(payload.to || "").trim().toLowerCase();
   const password = String(payload.password || "");
   const code = String(payload.code || "");
 
