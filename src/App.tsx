@@ -12,7 +12,7 @@ type User = { id:string; fullName:string; role:Role; grade:string; section:strin
 type Comp = { id:string; nameAr:string; nameEn:string; logoUrl:string; grades:string[]; rulesAr:string; rulesEn:string; startDate:string; closingDate:string; certDate:string; started:boolean; archived:boolean; criteria:string[]; evalCode:string };
 type WorkStatus = "pending" | "approved";
 type Work = { id:string; competitionId:string; studentId:string; title:string; desc:string; videoUrl:string; thumb:string; at:string; status?:WorkStatus; approvedBy?:string; approvedAt?:string };
-type Ev = { id:string; workId:string; scores:number[]; at:string; approved?:boolean };
+type Ev = { id:string; workId:string; scores:number[]; at:string; approved?:boolean; history?:Array<{scores:number[];at:string;approved?:boolean}>; };
 type Like = { workId:string; type:"friend"|"parent"|"teacher"; name:string; at:string };
 type Cert = { id:string; workId:string; studentId:string; compId:string; compName:string; score:number; rank:number; grade:string; section:string; issuedAt:string };
 type ClassInfo = { grade:string; section:string; teacherId:string; teacherName:string; count:number };
@@ -768,6 +768,170 @@ function LikesPanel({workId,likes,setLikes}:{workId:string;likes:Like[];setLikes
   );
 }
 
+/* ═══════ CERTIFICATE RENDERER (shared) ═══════ */
+type CertData={studentName:string;grade:string;section:string;compName:string;score:number;rank:number;issuedAt:string;serialSeed:string};
+const CERT_STYLE=String.raw`      @page{size:A4 landscape;margin:0}
+      *{box-sizing:border-box;margin:0;padding:0}
+      :root{
+        --navy:#132a56; --navy2:#1f2e76; --gold:#c9a227; --gold-l:#e7c766;
+        --ink:#1b2436; --muted:#6d7789; --cream:#fffdf6;
+      }
+      body{font-family:"Montserrat","Segoe UI",Arial,sans-serif;background:#e9edf4;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;color:var(--ink)}
+
+      .sheet{position:relative;width:1120px;max-width:100%;aspect-ratio:1.414/1;background:
+          radial-gradient(120% 90% at 50% -10%, #ffffff 0%, var(--cream) 45%, #fbf6e9 100%);
+        border:1px solid #ddcfae;border-radius:6px;overflow:hidden;
+        box-shadow:0 30px 80px rgba(12,26,60,.22), 0 2px 0 #fff inset}
+
+      /* faint engraved guilloche pattern */
+      .sheet::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+        background-image:
+          repeating-linear-gradient(45deg, rgba(19,42,86,.045) 0 1px, transparent 1px 9px),
+          repeating-linear-gradient(-45deg, rgba(201,162,39,.05) 0 1px, transparent 1px 9px);}
+      .sheet::after{content:"";position:absolute;inset:0;pointer-events:none;
+        background:radial-gradient(70% 55% at 50% 0%, rgba(201,162,39,.10), transparent 60%)}
+
+      /* double ornamental frame */
+      .frame{position:absolute;inset:16px;border:2.5px solid var(--navy2);border-radius:4px;pointer-events:none}
+      .frame::before{content:"";position:absolute;inset:6px;border:1.2px solid var(--gold)}
+      .corner{position:absolute;width:74px;height:74px;pointer-events:none;color:var(--gold)}
+      .corner svg{width:100%;height:100%;display:block}
+      .c-tl{top:22px;left:22px}.c-tr{top:22px;right:22px;transform:scaleX(-1)}
+      .c-bl{bottom:22px;left:22px;transform:scaleY(-1)}.c-br{bottom:22px;right:22px;transform:scale(-1,-1)}
+
+      .watermark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:"Playfair Display",serif;font-size:250px;font-weight:900;color:rgba(19,42,86,.035);letter-spacing:-8px;pointer-events:none;white-space:nowrap}
+
+      .content{position:relative;z-index:3;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:46px 78px 40px;text-align:center}
+
+      .head{display:flex;flex-direction:column;align-items:center;gap:7px}
+      .logo{height:58px;width:auto;object-fit:contain}
+      .school{font-family:"Playfair Display",serif;font-size:15px;font-weight:700;letter-spacing:.30em;text-transform:uppercase;color:var(--navy2)}
+      .school-ar{font-size:12.5px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+      .dept{margin-top:2px;font-size:9.5px;font-weight:800;letter-spacing:.30em;text-transform:uppercase;color:var(--gold)}
+
+      .orn{display:flex;align-items:center;gap:10px;margin:12px 0 2px;color:var(--gold)}
+      .orn i{display:block;width:74px;height:1px;background:linear-gradient(90deg,transparent,var(--gold))}
+      .orn i:last-child{background:linear-gradient(90deg,var(--gold),transparent)}
+      .orn span{font-size:13px;letter-spacing:2px}
+
+      h1{font-family:"Playfair Display",serif;font-size:41px;line-height:1.05;font-weight:900;letter-spacing:.055em;text-transform:uppercase;color:var(--navy2);margin-top:6px;text-shadow:0 1px 0 rgba(255,255,255,.9)}
+      .ar-title{font-family:"Cormorant Garamond",serif;font-size:23px;font-weight:700;color:var(--gold);direction:rtl;margin-top:2px;letter-spacing:.01em}
+      .sub{font-size:11px;font-weight:700;letter-spacing:.26em;text-transform:uppercase;color:var(--muted);margin-top:9px}
+
+      .recipient{width:100%;margin-top:16px}
+      .proud{font-size:11.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+      .name{font-family:"Playfair Display",serif;font-size:46px;font-weight:800;line-height:1.12;color:var(--navy);margin:6px 0 2px;letter-spacing:-.4px}
+      .name-rule{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:4px}
+      .name-rule i{display:block;height:1px;width:150px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+      .name-rule b{color:var(--gold);font-size:11px;line-height:1}
+      .meta{margin-top:8px;font-size:11.5px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;color:#41506b}
+
+      .award{margin-top:13px;max-width:760px;font-size:13px;line-height:1.85;color:#3c475c;font-weight:500}
+      .award b{color:var(--navy2);font-weight:800}
+      .award .ar{display:block;margin-top:4px;font-size:12.5px;line-height:1.95;color:#55607a}
+
+      .chips{display:flex;gap:12px;justify-content:center;margin-top:14px}
+      .chip{border-radius:999px;padding:8px 22px;font-size:11.5px;font-weight:800;letter-spacing:.10em;text-transform:uppercase}
+      .chip.rank{background:linear-gradient(135deg,#c9a227,#a8811a);color:#fff;box-shadow:0 10px 22px rgba(168,129,26,.26)}
+      .chip.score{background:#f4f7fc;color:var(--navy2);border:1px solid #d8e2f0}
+
+      .foot{width:100%;display:grid;grid-template-columns:1fr auto 1fr;align-items:end;gap:20px;margin-top:8px}
+      .sign{text-align:center}
+      .sign .line{height:1px;background:#c4cddd;margin:0 6px 6px}
+      .sign .who{font-size:11.5px;font-weight:800;color:var(--navy2);letter-spacing:.02em}
+      .sign .role{font-size:8.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#9aa4b6;margin-top:2px}
+
+      .seal{position:relative;width:112px;height:112px;border-radius:50%;
+        background:radial-gradient(circle at 32% 28%, #fdf6df 0%, #f2e2b4 55%, #dcc07c 100%);
+        border:2px solid #b98f1f;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+        box-shadow:0 8px 20px rgba(150,116,25,.28), inset 0 0 0 5px rgba(255,255,255,.55), inset 0 0 0 7px rgba(185,143,31,.55);
+        color:#8a6a12;font-weight:900;letter-spacing:.10em;text-align:center;line-height:1.3}
+      .seal .star{font-size:17px;color:#a8811a;line-height:1}
+      .seal .t{font-size:8.5px;margin-top:1px}
+      .seal .big{font-family:"Playfair Display",serif;font-size:12px;letter-spacing:.06em;color:#6f550e}
+
+      .serial{text-align:right;font-size:8.5px;line-height:1.85;color:#98a2b4;letter-spacing:.09em}
+      .serial b{color:#5b6779;font-weight:800}
+
+      .tools{text-align:center;margin-bottom:14px;font-family:"Montserrat",Arial,sans-serif}
+      .tools button{padding:12px 28px;border-radius:999px;border:0;background:var(--navy2);color:#fff;font-weight:800;cursor:pointer;margin:0 5px;font-size:12.5px;letter-spacing:.04em}
+      .tools button.gold{background:linear-gradient(135deg,#e7c766,#c9a227);color:#2b2207}
+      @media print{.tools{display:none}body{background:#fff;padding:0}.sheet{box-shadow:none;border-radius:0;border:0;width:100%;height:100vh;aspect-ratio:auto}}`;
+function certSheet(o:CertData):string{
+  const safe=(v:any)=>String(v??"").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const medal=MEDALS[o.rank-1]||"★";
+  const serial=`GWA-${String(o.issuedAt||"").replace(/-/g,"")}-${String(o.serialSeed||"").replace(/[^a-zA-Z0-9]/g,"").slice(-4).toUpperCase()}`;
+  const verifyUrl="gwa-champions-platform.vercel.app";
+  return `
+<div class="sheet">
+          <div class="watermark">GWA</div>
+          <div class="frame"></div>
+          ${["c-tl","c-tr","c-bl","c-br"].map(cls=>`<span class="corner ${cls}"><svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 40C4 18 18 4 40 4"/><path d="M4 56C4 24 24 4 56 4" stroke-width="1.1" opacity=".65"/><path d="M12 30c8 0 18 6 22 16-10-4-18-4-22 2" fill="currentColor" stroke="none" opacity=".85"/><circle cx="41" cy="41" r="3.4" fill="currentColor" stroke="none"/></svg></span>`).join("")}
+
+          <div class="content">
+            <div class="head">
+              <img class="logo" src="/gems-logo.png" alt="GEMS World Academy"/>
+              <div class="school">GEMS World Academy Dubai</div>
+              <div class="school-ar" dir="rtl">أكاديمية جيمس العالمية — دبي</div>
+              <div class="dept">Arabic &amp; Islamic Champions • أبطال العربية والإسلامية</div>
+              <div class="orn"><i></i><span>❖</span><i></i></div>
+            </div>
+
+            <div>
+              <h1>Certificate of Appreciation</h1>
+              <div class="ar-title" dir="rtl">شهادة تقدير</div>
+              <div class="sub">International Recognition of Academic Excellence</div>
+
+              <div class="recipient">
+                <div class="proud">This certificate is proudly presented to</div>
+                <div class="name">${safe(o.studentName)}</div>
+                <div class="name-rule"><i></i><b>◆</b><i></i></div>
+                <div class="meta">${safe(o.grade)} &nbsp;•&nbsp; Section ${safe(o.section)}</div>
+              </div>
+
+              <div class="award">
+                in recognition of outstanding participation and commendable achievement in
+                <b>${safe(o.compName)}</b>
+                <span class="ar" dir="rtl">تقديراً للمشاركة المتميزة والأداء المشرف في المسابقة المذكورة أعلاه، مع أطيب التمنيات بدوام التوفيق والتفوق.</span>
+              </div>
+
+              <div class="chips">
+                <span class="chip rank">${medal} Rank #${o.rank}</span>
+                <span class="chip score">Score ${o.score} / 100</span>
+              </div>
+            </div>
+
+            <div class="foot">
+              <div class="sign">
+                <div class="line"></div>
+                <div class="who">Arabic &amp; Islamic Department</div>
+                <div class="role">Issuing Authority</div>
+              </div>
+              <div class="seal">
+                <span class="star">★</span>
+                <span class="big">GWA</span>
+                <span class="t">CHAMPIONS</span>
+                <span class="t">OFFICIAL SEAL</span>
+              </div>
+              <div class="sign">
+                <div class="line"></div>
+                <div class="who">Ms Heba</div>
+                <div class="role">Teacher in Charge</div>
+              </div>
+            </div>
+
+            <div class="serial">
+              Issued <b>${safe(o.issuedAt)}</b> &nbsp;|&nbsp; Serial <b>${serial}</b><br/>
+              Verify at <b>${verifyUrl}</b>
+            </div>
+          </div>
+        </div>
+  `;}
+function certWindow(t:string,sheets:string[]):string{
+  const pages=sheets.map((h,i)=>`<div class="cp"${i<sheets.length-1?' style="page-break-after:always"':""}>${h}</div>`).join("");
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><title>${String(t).replace(/</g,"&lt;")}</title><link rel="preconnect" href="https://fonts.googleapis.com"/><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Playfair+Display:wght@600;700;800;900&family=Montserrat:wght@500;600;700;800&display=swap" rel="stylesheet"/><style>${CERT_STYLE} .cp{display:flex;align-items:center;justify-content:center}@media screen{.cp{margin:0 0 18px}}</style></head><body><div><div class="tools"><button class="gold" onclick="window.print()">🖨️ Print / Save as PDF</button><button onclick="window.close()">Close</button></div>${pages}</div></body></html>`;}
+function openCertWindow(html:string){const w=window.open("","_blank","width=1160,height=840");if(!w)return;w.document.write(html);w.document.close();}
+
 /* ── WORK CARD (shared between class board and global works) ── */
 function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,onPromote}:{w:Work;users:User[];evals:Ev[];comps:Comp[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean}){
   const stu=users.find(s=>s.id===w.studentId);
@@ -903,6 +1067,18 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
             <button onClick={()=>{setCodeMode("eval");setShowCodePrompt(true)}} className="w-full rounded-2xl bg-white/5 border border-white/10 px-4 py-2.5 text-xs font-bold text-white/30 hover:text-[#FDB51F] hover:border-[#FDB51F]/30 transition cursor-pointer text-center">
               ✏️ Edit Evaluation • تعديل التقييم
             </button>
+          )}
+          {isApproved(w)&&ev&&ev.approved!==false&&(
+            <button onClick={()=>{
+                if(!window.confirm("Re-evaluate? The previous result is kept.\nإعادة تقييم؟ يُحفظ التقييم السابق.")) return;
+                setEvals(prev=>prev.map(e=>e.workId===w.id?{...e,approved:false,at:new Date().toISOString(),history:[...(e.history||[]),{scores:e.scores,at:e.at,approved:e.approved}]}:e));
+                setEditEval(true);
+              }} className="w-full rounded-2xl bg-[#FDB51F]/15 border border-[#FDB51F]/35 px-4 py-3 text-xs font-black text-[#FFE29A] hover:bg-[#FDB51F]/25 transition text-center">
+              🔄 Re-evaluate • إعادة التقييم
+            </button>
+          )}
+          {ev&&ev.approved===false&&(
+            <div className="rounded-2xl border border-[#FDB51F]/30 bg-[#FDB51F]/10 px-4 py-3 text-[11px] font-bold text-[#FFE29A] text-center">⏳ Pending re-approval • بانتظار إعادة الاعتماد</div>
           )}
           <button onClick={()=>{setCodeMode("delete");setShowCodePrompt(true)}} className="w-full rounded-2xl bg-rose-500/10 border border-rose-400/20 px-4 py-2.5 text-xs font-black text-rose-200 hover:bg-rose-500/20 transition cursor-pointer text-center">
             🗑 Delete Video • حذف الفيديو
@@ -1577,7 +1753,7 @@ function AppRoutes(){
   if(view==="winners")return<WinnersPage comps={comps} works={works} evals={evals} users={users} likes={likes} setLikes={setLikes} certs={certs} onPromote={promoteToCertificate} adminPw={adminPw} onArchive={handleArchive} onBack={()=>setView("showcase")}/>;
   if(view==="classBoard"&&selClass)return<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/>;
   if(view==="adminLogin")return<AdminLoginPage adminPw={adminPw} onBack={()=>setView("home")} onOk={()=>setView("admin")}/>;
-  if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw}
+  if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} works={works} evals={evals} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw}
       onDeleteCompetition={c=>{
         const doomed=works.filter(w=>w.competitionId===c.id).map(w=>w.id);
         void cloudDeleteCompetition(c.id, doomed);
@@ -1766,7 +1942,7 @@ function HomePage({onStart,onAdmin,onStudent,onTeacher}:{onStart:()=>void;onAdmi
    2. SHOWCASE
    ════════════════════════════════════ */
 function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,setComps,setCerts,setArchive,certs,adminPw,onPromote,onBack,onParticipate,onWinners,onAllWorks}:{comps:Comp[];users:User[];works:Work[];evals:Ev[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;setComps:React.Dispatch<React.SetStateAction<Comp[]>>;setCerts:React.Dispatch<React.SetStateAction<Cert[]>>;setArchive:React.Dispatch<React.SetStateAction<ArchiveEntry[]>>;certs:Cert[];adminPw:string;onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void;onClass:(c:ClassInfo)=>void;onParticipate:(id:string)=>void;onWinners:()=>void;onAllWorks:()=>void}){
-  const evaluatedCount=useMemo(()=>works.filter(w=>isApproved(w)&&evals.some(e=>e.workId===w.id)).length,[works,evals]);
+  const evaluatedCount=useMemo(()=>works.filter(w=>isApproved(w)&&evals.some(e=>e.workId===w.id&&e.approved!==false)).length,[works,evals]);
   /* ── ADMIN MODE (unlocked only with the admin password) ── */
   const[adminMode,setAdminMode]=useState(false);
   const[askPw,setAskPw]=useState(false);
@@ -1989,7 +2165,10 @@ function GlobalWorksPage({users,works,evals,comps,likes,setLikes,setEvals,setWor
    ════════════════════════════════════ */
 function WinnersPage({comps,works,evals,users,likes,setLikes,certs,onPromote,adminPw,onArchive,onBack}:{comps:Comp[];works:Work[];evals:Ev[];users:User[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;adminPw:string;onArchive:(comp:Comp,winners:any[])=>void;onBack:()=>void}){
   const today=new Date().toISOString().slice(0,10);
-  const closedComps=useMemo(()=>comps.filter(c=>c.closingDate<=today&&!c.archived),[comps,today]);
+  const closedComps=useMemo(()=>{
+    const ids=new Set([...comps.filter(c=>!c.archived&&works.some(w=>w.competitionId===c.id&&isApproved(w)&&evals.some(e=>e.workId===w.id&&e.approved!==false))).map(c=>c.id),...comps.filter(c=>c.closingDate<=today&&!c.archived).map(c=>c.id)]);
+    return comps.filter(c=>ids.has(c.id)&&!c.archived);
+  },[comps,works,evals,today]);
   const[selCompId,setSelCompId]=useState<string|null>(closedComps[0]?.id||null);
   const[archivePw,setArchivePw]=useState("");
   const[archiveErr,setArchiveErr]=useState("");
@@ -2004,7 +2183,7 @@ function WinnersPage({comps,works,evals,users,likes,setLikes,certs,onPromote,adm
 
   const rankingsForComp=useMemo(()=>{
     if(!selComp)return[];
-    const scored=works.filter(w=>w.competitionId===selComp.id&&isApproved(w)&&evals.some(e=>e.workId===w.id)).map(w=>{
+    const scored=works.filter(w=>w.competitionId===selComp.id&&isApproved(w)&&evals.some(e=>e.workId===w.id&&e.approved!==false)).map(w=>{
       const ev=evals.find(e=>e.workId===w.id)!; const stu=users.find(s=>s.id===w.studentId);
       return{work:w,score:tot(ev.scores),stu};
     }).filter(x=>x.stu).sort((a,b)=>b.score-a.score).slice(0,20);
@@ -2444,7 +2623,7 @@ function TeacherClassesModal({teacher,onSave,onClose}:{teacher:User;onSave:(list
   );
 }
 
-function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onDeleteCompetition,onBack}:{users:User[];setUsers:React.Dispatch<React.SetStateAction<User[]>>;comps:Comp[];setComps:React.Dispatch<React.SetStateAction<Comp[]>>;archive:ArchiveEntry[];adminPw:string;setAdminPw:(pw:string)=>void;onDeleteCompetition:(c:Comp)=>void;onBack:()=>void}){
+function AdminPage({users,setUsers,comps,setComps,works,evals,archive,adminPw,setAdminPw,onDeleteCompetition,onBack}:{users:User[];setUsers:React.Dispatch<React.SetStateAction<User[]>>;comps:Comp[];setComps:React.Dispatch<React.SetStateAction<Comp[]>>;works:Work[];evals:Ev[];archive:ArchiveEntry[];adminPw:string;setAdminPw:(pw:string)=>void;onDeleteCompetition:(c:Comp)=>void;onBack:()=>void}){
   const teachers=useMemo(()=>users.filter(u=>u.role==="teacher"),[users]);
   const[tab,setTab]=useState<"users"|"export"|"comps"|"archive"|"security">("users");
   const[admEditComp,setAdmEditComp]=useState<Comp|null>(null);
@@ -2498,6 +2677,18 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onD
     const id=editClassesFor.id;
     setUsers(prev=>prev.map(it=>it.id===id?{...it,grade:encodeClasses(list),section:""}:it));
   }
+  function printCompetitionCertificates(c:Comp,onlyApproved:boolean){
+    const rows=works.filter(w=>w.competitionId===c.id).filter(w=>!onlyApproved||(isApproved(w)&&w.status==="approved")).map(w=>{
+      const stu=users.find(u=>u.id===w.studentId);const ev=evals.find(e=>e.workId===w.id);return{work:w,stu,score:ev?tot(ev.scores):0};
+    }).filter(r=>r.stu) as Array<{work:Work;stu:User;score:number}>;
+    if(!rows.length){setCmsg(onlyApproved?"لا توجد مشاركات معتمدة":"لا توجد مشاركات");return}
+    const sorted=[...rows].sort((a,b)=>b.score-a.score);
+    let ls:number|null=null,lr=0;
+    const ranked=sorted.map((r,i)=>{const rank=(ls!==null&&r.score===ls)?lr:i+1;ls=r.score;lr=rank;return{...r,rank}});
+    const d=new Date().toISOString().slice(0,10);
+    openCertWindow(certWindow(`${c.nameEn} — ${ranked.length} certificates`,ranked.map(({work,stu,score,rank})=>certSheet({studentName:stu!.fullName,grade:stu!.grade||"—",section:stu!.section||"—",compName:c.nameEn+(c.nameAr?` • ${c.nameAr}`:""),score,rank,issuedAt:d,serialSeed:work.id}))));
+    setCmsg(`🖨️ ${ranked.length} شهادة جاهزة`);}
+
   function createComp(e:React.FormEvent){e.preventDefault();if(!nAr.trim()||!nEn.trim()){setCmsg("Enter both names");return}
     const code=Math.random().toString(36).slice(2,8).toUpperCase();
     const t=rulesForPreset(selPreset&&selPreset!=="custom"?Number(selPreset):undefined,nAr,nEn);
@@ -2658,7 +2849,9 @@ function AdminPage({users,setUsers,comps,setComps,archive,adminPw,setAdminPw,onD
                     <span className="text-xs text-white/40">🔐 Eval Code:</span>
                     <span className="text-sm font-black text-[#FDB51F] tracking-[0.2em]">{c.evalCode||"—"}</span>
                     <button onClick={()=>{const nc=prompt("New evaluation code:",c.evalCode||"");if(nc!==null)setComps(p=>p.map(x=>x.id===c.id?{...x,evalCode:nc.toUpperCase()}:x))}} className="text-xs text-sky-300 hover:text-sky-200 font-bold ml-2">Change</button>
-                    <div className="ml-auto flex gap-2">
+                    <div className="ml-auto flex flex-wrap gap-2">
+                      <button onClick={()=>printCompetitionCertificates(c,false)} className="rounded-full border border-[#FDB51F]/40 bg-[#FDB51F]/20 px-3 py-1.5 text-[11px] font-black text-[#FFE29A] hover:bg-[#FDB51F]/30">🖨️ كل المشاركين</button>
+                      <button onClick={()=>printCompetitionCertificates(c,true)} className="rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1.5 text-[11px] font-black text-emerald-200 hover:bg-emerald-500/25">🖨️ المعتمدون</button>
                       <button onClick={()=>setAdmEditComp(c)} className="rounded-full border border-sky-400/30 bg-sky-500/20 px-3 py-1.5 text-[11px] font-black text-sky-200 hover:bg-sky-500/30">✏️ تعديل</button>
                       <button onClick={()=>setAdmDelComp(c)} className="rounded-full border border-rose-400/30 bg-rose-600/20 px-3 py-1.5 text-[11px] font-black text-rose-200 hover:bg-rose-600/30">🗑 حذف</button>
                     </div>
@@ -2916,177 +3109,9 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
   const selComp=avail.find(c=>c.id===cid);
   
   function printCert(cert:Cert){
-    const win=window.open("","_blank","width=1160,height=840");
-    if(!win)return;
-    const safe=(v:any)=>String(v??"").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-    const medal=MEDALS[cert.rank-1]||"★";
-    const serial=`GWA-${String(cert.issuedAt||"").replace(/-/g,"")}-${String(cert.id).slice(-4).toUpperCase()}`;
-    const verifyUrl="gwa-champions-platform.vercel.app";
-    win.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
-    <title>Certificate of Appreciation — ${safe(student.fullName)}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com"/>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Playfair+Display:wght@600;700;800;900&family=Montserrat:wght@500;600;700;800&display=swap" rel="stylesheet"/>
-    <style>
-      @page{size:A4 landscape;margin:0}
-      *{box-sizing:border-box;margin:0;padding:0}
-      :root{
-        --navy:#132a56; --navy2:#1f2e76; --gold:#c9a227; --gold-l:#e7c766;
-        --ink:#1b2436; --muted:#6d7789; --cream:#fffdf6;
-      }
-      body{font-family:"Montserrat","Segoe UI",Arial,sans-serif;background:#e9edf4;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;color:var(--ink)}
-
-      .sheet{position:relative;width:1120px;max-width:100%;aspect-ratio:1.414/1;background:
-          radial-gradient(120% 90% at 50% -10%, #ffffff 0%, var(--cream) 45%, #fbf6e9 100%);
-        border:1px solid #ddcfae;border-radius:6px;overflow:hidden;
-        box-shadow:0 30px 80px rgba(12,26,60,.22), 0 2px 0 #fff inset}
-
-      /* faint engraved guilloche pattern */
-      .sheet::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
-        background-image:
-          repeating-linear-gradient(45deg, rgba(19,42,86,.045) 0 1px, transparent 1px 9px),
-          repeating-linear-gradient(-45deg, rgba(201,162,39,.05) 0 1px, transparent 1px 9px);}
-      .sheet::after{content:"";position:absolute;inset:0;pointer-events:none;
-        background:radial-gradient(70% 55% at 50% 0%, rgba(201,162,39,.10), transparent 60%)}
-
-      /* double ornamental frame */
-      .frame{position:absolute;inset:16px;border:2.5px solid var(--navy2);border-radius:4px;pointer-events:none}
-      .frame::before{content:"";position:absolute;inset:6px;border:1.2px solid var(--gold)}
-      .corner{position:absolute;width:74px;height:74px;pointer-events:none;color:var(--gold)}
-      .corner svg{width:100%;height:100%;display:block}
-      .c-tl{top:22px;left:22px}.c-tr{top:22px;right:22px;transform:scaleX(-1)}
-      .c-bl{bottom:22px;left:22px;transform:scaleY(-1)}.c-br{bottom:22px;right:22px;transform:scale(-1,-1)}
-
-      .watermark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:"Playfair Display",serif;font-size:250px;font-weight:900;color:rgba(19,42,86,.035);letter-spacing:-8px;pointer-events:none;white-space:nowrap}
-
-      .content{position:relative;z-index:3;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:46px 78px 40px;text-align:center}
-
-      .head{display:flex;flex-direction:column;align-items:center;gap:7px}
-      .logo{height:58px;width:auto;object-fit:contain}
-      .school{font-family:"Playfair Display",serif;font-size:15px;font-weight:700;letter-spacing:.30em;text-transform:uppercase;color:var(--navy2)}
-      .school-ar{font-size:12.5px;font-weight:600;color:var(--muted);letter-spacing:.02em}
-      .dept{margin-top:2px;font-size:9.5px;font-weight:800;letter-spacing:.30em;text-transform:uppercase;color:var(--gold)}
-
-      .orn{display:flex;align-items:center;gap:10px;margin:12px 0 2px;color:var(--gold)}
-      .orn i{display:block;width:74px;height:1px;background:linear-gradient(90deg,transparent,var(--gold))}
-      .orn i:last-child{background:linear-gradient(90deg,var(--gold),transparent)}
-      .orn span{font-size:13px;letter-spacing:2px}
-
-      h1{font-family:"Playfair Display",serif;font-size:41px;line-height:1.05;font-weight:900;letter-spacing:.055em;text-transform:uppercase;color:var(--navy2);margin-top:6px;text-shadow:0 1px 0 rgba(255,255,255,.9)}
-      .ar-title{font-family:"Cormorant Garamond",serif;font-size:23px;font-weight:700;color:var(--gold);direction:rtl;margin-top:2px;letter-spacing:.01em}
-      .sub{font-size:11px;font-weight:700;letter-spacing:.26em;text-transform:uppercase;color:var(--muted);margin-top:9px}
-
-      .recipient{width:100%;margin-top:16px}
-      .proud{font-size:11.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
-      .name{font-family:"Playfair Display",serif;font-size:46px;font-weight:800;line-height:1.12;color:var(--navy);margin:6px 0 2px;letter-spacing:-.4px}
-      .name-rule{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:4px}
-      .name-rule i{display:block;height:1px;width:150px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
-      .name-rule b{color:var(--gold);font-size:11px;line-height:1}
-      .meta{margin-top:8px;font-size:11.5px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;color:#41506b}
-
-      .award{margin-top:13px;max-width:760px;font-size:13px;line-height:1.85;color:#3c475c;font-weight:500}
-      .award b{color:var(--navy2);font-weight:800}
-      .award .ar{display:block;margin-top:4px;font-size:12.5px;line-height:1.95;color:#55607a}
-
-      .chips{display:flex;gap:12px;justify-content:center;margin-top:14px}
-      .chip{border-radius:999px;padding:8px 22px;font-size:11.5px;font-weight:800;letter-spacing:.10em;text-transform:uppercase}
-      .chip.rank{background:linear-gradient(135deg,#c9a227,#a8811a);color:#fff;box-shadow:0 10px 22px rgba(168,129,26,.26)}
-      .chip.score{background:#f4f7fc;color:var(--navy2);border:1px solid #d8e2f0}
-
-      .foot{width:100%;display:grid;grid-template-columns:1fr auto 1fr;align-items:end;gap:20px;margin-top:8px}
-      .sign{text-align:center}
-      .sign .line{height:1px;background:#c4cddd;margin:0 6px 6px}
-      .sign .who{font-size:11.5px;font-weight:800;color:var(--navy2);letter-spacing:.02em}
-      .sign .role{font-size:8.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#9aa4b6;margin-top:2px}
-
-      .seal{position:relative;width:112px;height:112px;border-radius:50%;
-        background:radial-gradient(circle at 32% 28%, #fdf6df 0%, #f2e2b4 55%, #dcc07c 100%);
-        border:2px solid #b98f1f;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
-        box-shadow:0 8px 20px rgba(150,116,25,.28), inset 0 0 0 5px rgba(255,255,255,.55), inset 0 0 0 7px rgba(185,143,31,.55);
-        color:#8a6a12;font-weight:900;letter-spacing:.10em;text-align:center;line-height:1.3}
-      .seal .star{font-size:17px;color:#a8811a;line-height:1}
-      .seal .t{font-size:8.5px;margin-top:1px}
-      .seal .big{font-family:"Playfair Display",serif;font-size:12px;letter-spacing:.06em;color:#6f550e}
-
-      .serial{text-align:right;font-size:8.5px;line-height:1.85;color:#98a2b4;letter-spacing:.09em}
-      .serial b{color:#5b6779;font-weight:800}
-
-      .tools{text-align:center;margin-bottom:14px;font-family:"Montserrat",Arial,sans-serif}
-      .tools button{padding:12px 28px;border-radius:999px;border:0;background:var(--navy2);color:#fff;font-weight:800;cursor:pointer;margin:0 5px;font-size:12.5px;letter-spacing:.04em}
-      .tools button.gold{background:linear-gradient(135deg,#e7c766,#c9a227);color:#2b2207}
-      @media print{.tools{display:none}body{background:#fff;padding:0}.sheet{box-shadow:none;border-radius:0;border:0;width:100%;height:100vh;aspect-ratio:auto}}
-    </style></head><body>
-      <div>
-        <div class="tools">
-          <button class="gold" onclick="window.print()">🖨️ Print / Save as PDF</button>
-          <button onclick="window.close()">Close</button>
-        </div>
-
-        <div class="sheet">
-          <div class="watermark">GWA</div>
-          <div class="frame"></div>
-          ${["c-tl","c-tr","c-bl","c-br"].map(cls=>`<span class="corner ${cls}"><svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 40C4 18 18 4 40 4"/><path d="M4 56C4 24 24 4 56 4" stroke-width="1.1" opacity=".65"/><path d="M12 30c8 0 18 6 22 16-10-4-18-4-22 2" fill="currentColor" stroke="none" opacity=".85"/><circle cx="41" cy="41" r="3.4" fill="currentColor" stroke="none"/></svg></span>`).join("")}
-
-          <div class="content">
-            <div class="head">
-              <img class="logo" src="/gems-logo.png" alt="GEMS World Academy"/>
-              <div class="school">GEMS World Academy Dubai</div>
-              <div class="school-ar" dir="rtl">أكاديمية جيمس العالمية — دبي</div>
-              <div class="dept">Arabic &amp; Islamic Champions • أبطال العربية والإسلامية</div>
-              <div class="orn"><i></i><span>❖</span><i></i></div>
-            </div>
-
-            <div>
-              <h1>Certificate of Appreciation</h1>
-              <div class="ar-title" dir="rtl">شهادة تقدير</div>
-              <div class="sub">International Recognition of Academic Excellence</div>
-
-              <div class="recipient">
-                <div class="proud">This certificate is proudly presented to</div>
-                <div class="name">${safe(student.fullName)}</div>
-                <div class="name-rule"><i></i><b>◆</b><i></i></div>
-                <div class="meta">${safe(cert.grade)} &nbsp;•&nbsp; Section ${safe(cert.section)}</div>
-              </div>
-
-              <div class="award">
-                in recognition of outstanding participation and commendable achievement in
-                <b>${safe(cert.compName)}</b>
-                <span class="ar" dir="rtl">تقديراً للمشاركة المتميزة والأداء المشرف في المسابقة المذكورة أعلاه، مع أطيب التمنيات بدوام التوفيق والتفوق.</span>
-              </div>
-
-              <div class="chips">
-                <span class="chip rank">${medal} Rank #${cert.rank}</span>
-                <span class="chip score">Score ${cert.score} / 100</span>
-              </div>
-            </div>
-
-            <div class="foot">
-              <div class="sign">
-                <div class="line"></div>
-                <div class="who">Arabic &amp; Islamic Department</div>
-                <div class="role">Issuing Authority</div>
-              </div>
-              <div class="seal">
-                <span class="star">★</span>
-                <span class="big">GWA</span>
-                <span class="t">CHAMPIONS</span>
-                <span class="t">OFFICIAL SEAL</span>
-              </div>
-              <div class="sign">
-                <div class="line"></div>
-                <div class="who">Ms Heba</div>
-                <div class="role">Teacher in Charge</div>
-              </div>
-            </div>
-
-            <div class="serial">
-              Issued <b>${safe(cert.issuedAt)}</b> &nbsp;|&nbsp; Serial <b>${serial}</b><br/>
-              Verify at <b>${verifyUrl}</b>
-            </div>
-          </div>
-        </div>
-      </div>
-    </body></html>`);
-    win.document.close();
+    openCertWindow(certWindow(`Certificate — ${student.fullName}`,[
+      certSheet({studentName:student.fullName,grade:cert.grade,section:cert.section,compName:cert.compName,score:cert.score,rank:cert.rank,issuedAt:cert.issuedAt,serialSeed:cert.id})
+    ]));
   }
 
   return(
