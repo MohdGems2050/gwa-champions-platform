@@ -180,6 +180,7 @@ function sv(k:string,v:any){
         const byId = new Map<string, any>();
         v.forEach((u:any)=>{
           if(!u || !u.id || !u.username) return;
+          if(deletedUsers.has(String(u.id))) return;
           byId.set(String(u.id), {
             id:String(u.id), full_name:u.fullName||u.username, role:u.role||"student",
             grade:u.grade||"", section:u.section||"", teacher_id:u.teacherId||null,
@@ -356,6 +357,26 @@ const isAdminEmail = (value:string)=> ADMIN_EMAILS.includes(String(value||"").tr
    so no device can re-upload it or render a placeholder for it. */
 const deletedComps = new Set<string>();
 const deletedWorks = new Set<string>();
+const deletedUsers = new Set<string>();
+
+/** Delete a user from the cloud so they never come back on any device. */
+async function cloudDeleteUser(userId:string, username:string){
+  deletedUsers.add(String(userId));
+  if(!isSupabaseConfigured) return;
+  try{
+    /* 1) tombstone row in evaluations (same technique as competitions/approvals) */
+    await supabase.from("evaluations").upsert({
+      id:"__userdel__"+String(userId),
+      work_id:"__userdel__",
+      scores:[],
+      approved:true
+    },{onConflict:"id"});
+    /* 2) actually delete the cloud account row */
+    await supabase.from("accounts").delete().eq("id", userId);
+    /* 3) also try by username in case the id didn't match */
+    if(username) await supabase.from("accounts").delete().ilike("username", username);
+  }catch(e){ console.warn("user deletion sync:", e); }
+}
 const TOMB_PREFIX = "__compdel__";
 
 async function cloudDeleteCompetition(compId:string, workIds:string[]){
@@ -1570,18 +1591,26 @@ function AppRoutes(){
   useEffect(()=>{
     async function loadFromSupabase(){
       try {
+        /* load user tombstones first so deleted accounts are never restored */
+        try{
+          const {data:tombRows} = await supabase.from("evaluations").select("id").like("id","__userdel__%");
+          (tombRows||[]).forEach((r:any)=>deletedUsers.add(String(r.id).replace("__userdel__","")));
+        }catch{}
+
         const {data:dbUsers} = await supabase.from("accounts").select("*");
         if(dbUsers && dbUsers.length > 0){
-          const mapped = dbUsers.map((u:any)=>({
-            id:u.id, fullName:u.full_name, role:u.role, grade:u.grade,
-            section:u.section, teacherId:u.teacher_id, username:u.username,
-            password:u.password, createdAt:u.created_at||"", active:u.active!==false
-          }));
+          const mapped = dbUsers
+            .filter((u:any)=>!deletedUsers.has(String(u.id)))
+            .map((u:any)=>({
+              id:u.id, fullName:u.full_name, role:u.role, grade:u.grade,
+              section:u.section, teacherId:u.teacher_id, username:u.username,
+              password:u.password, createdAt:u.created_at||"", active:u.active!==false
+            }));
           setUsers(prev=>{
-            const ids=new Set(mapped.map((u:any)=>u.id));
-            const merged=[...mapped,...prev.filter(u=>!ids.has(u.id))];
-            localStorage.setItem(SK.u,JSON.stringify(merged));
-            return merged;
+            const filtered = [...mapped,...prev.filter(u=>!mapped.some(m=>m.id===u.id))]
+              .filter(u=>!deletedUsers.has(String(u.id)));
+            localStorage.setItem(SK.u,JSON.stringify(filtered));
+            return filtered;
           });
         }
         const {data:dbWorks} = await supabase.from("works_cloud").select("*").order('at',{ascending:false});
@@ -2558,7 +2587,7 @@ function StudentLoginPage({users,onBack,onOk}:{users:User[];onBack:()=>void;onOk
     setLoading(true);
     try{
       // 1) Cached/synced list (works offline and on repeat visits)
-      let s=users.find(x=>norm(x.username)===norm(username) && String(x.password)===password && (x.role==="student"||x.role==="teacher") && x.active!==false);
+      let s=users.find(x=>norm(x.username)===norm(username) && String(x.password)===password && (x.role==="student"||x.role==="teacher") && x.active!==false && !deletedUsers.has(String(x.id)));
 
       // 2) Direct cloud check (fresh device, or account created on another device)
       if(!s){
@@ -2819,7 +2848,7 @@ function AdminPage({users,setUsers,comps,setComps,works,evals,archive,adminPw,se
                 <div key={u.id} className={cn("rounded-2xl border p-4 transition",u.active?"border-white/10 bg-black/20":"border-rose-500/20 bg-rose-500/5 opacity-60")}>
                   <div className="flex justify-between items-start gap-2">
                     <div className="min-w-0"><div className="font-black text-white flex items-center gap-2 flex-wrap">{u.fullName}{!u.active&&<span className="text-[9px] bg-rose-500 text-white px-2 py-0.5 rounded-full uppercase">Disabled</span>}</div><div className="flex flex-wrap gap-1.5 mt-2"><Pill t={u.role==="teacher"?"green":"blue"}>{u.role}</Pill>{u.role==="student"&&<Pill t="gold">{u.grade}</Pill>}{u.role==="student"&&<Pill t="pink">{u.section}</Pill>}{u.role==="teacher"&&decodeClasses(u).map(c=><Pill key={`${c.grade}-${c.section}`} t="green">🏫 {classLabel(c)}</Pill>)}{u.role==="student"&&u.teacherId&&<Pill t="slate">Teacher: {teachers.find(t=>t.id===u.teacherId)?.fullName||"—"}</Pill>}</div><div className="mt-1.5 text-xs text-white/40 font-bold">👤 {u.username} / 🔑 {u.password}</div></div>
-                    <div className="flex flex-col gap-1.5 shrink-0">{u.role==="teacher"&&<button onClick={()=>setEditClassesFor(u)} className="rounded-xl px-3 py-1.5 text-[10px] font-black bg-sky-500/20 border border-sky-400/30 text-sky-200 hover:bg-sky-500/30 transition">🏫 Classes</button>}<button onClick={()=>setUsers(prev=>prev.map(it=>it.id===u.id?{...it,active:!it.active}:it))} className={cn("rounded-xl px-3 py-2 text-xs font-black transition",u.active?"bg-rose-500 text-white hover:bg-rose-600":"bg-emerald-500 text-white hover:bg-emerald-600")}>{u.active?"Disable":"Activate"}</button><button onClick={()=>{if(window.confirm(`Remove "${u.fullName}" permanently?`)){ setUsers(prev=>prev.filter(it=>it.id!==u.id)); }}} className="rounded-xl px-3 py-1.5 text-[10px] font-black bg-black/30 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition">🗑 Remove</button></div>
+                    <div className="flex flex-col gap-1.5 shrink-0">{u.role==="teacher"&&<button onClick={()=>setEditClassesFor(u)} className="rounded-xl px-3 py-1.5 text-[10px] font-black bg-sky-500/20 border border-sky-400/30 text-sky-200 hover:bg-sky-500/30 transition">🏫 Classes</button>}<button onClick={()=>setUsers(prev=>prev.map(it=>it.id===u.id?{...it,active:!it.active}:it))} className={cn("rounded-xl px-3 py-2 text-xs font-black transition",u.active?"bg-rose-500 text-white hover:bg-rose-600":"bg-emerald-500 text-white hover:bg-emerald-600")}>{u.active?"Disable":"Activate"}</button><button onClick={()=>{if(window.confirm(`Remove "${u.fullName}" permanently?\n\nThis account will be deleted from all devices and cannot sign in again.\nحذف الحساب نهائياً من كل الأجهزة ولا يمكن الدخول مجدداً.`)){ void cloudDeleteUser(u.id,u.username); setUsers(prev=>prev.filter(it=>it.id!==u.id)); }}} className="rounded-xl px-3 py-1.5 text-[10px] font-black bg-black/30 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition">🗑 Remove</button></div>
                   </div>
                 </div>
               ))}</div>
