@@ -714,10 +714,13 @@ function TA(p:React.TextareaHTMLAttributes<HTMLTextAreaElement>){return<textarea
 function Stat({l,v,s}:{l:string;v:string|number;s:string}){return<div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm"><div className="text-[10px] font-bold uppercase tracking-[0.24em] text-white/40">{l}</div><div className="mt-2 text-3xl font-black text-white">{v}</div><div className="mt-1 text-sm text-white/50">{s}</div></div>}
 
 /* ── EVALUATION EDITOR MODAL ── */
-function EvalModal({workId,evals,setEvals,onClose,teacherName,criteria=DEFAULT_CRITERIA}:{workId:string;evals:Ev[];setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;onClose:()=>void;teacherName:string;criteria:string[]}){
+function EvalModal({workId,evals,setEvals,onClose,teacherName,criteria=DEFAULT_CRITERIA,onCriteriaChange}:{workId:string;evals:Ev[];setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;onClose:()=>void;teacherName:string;criteria:string[];onCriteriaChange?:(patch:string[])=>void}){
   const ex=evals.find(e=>e.workId===workId);
   const[scores,setScores]=useState<number[]>(ex?[...ex.scores]:Array(10).fill(5));
+  const[customCriteria,setCustomCriteria]=useState<string[]>(criteria);
+  const[editMode,setEditMode]=useState(false);
   function save(approved=false){
+    if(onCriteriaChange && JSON.stringify(customCriteria)!==JSON.stringify(criteria)) onCriteriaChange(customCriteria);
     if(ex){
       setEvals(p=>p.map(e=>e.workId===workId?{...e,scores,at:new Date().toISOString(),approved}:e));
     }else{
@@ -726,17 +729,29 @@ function EvalModal({workId,evals,setEvals,onClose,teacherName,criteria=DEFAULT_C
     onClose();
   }
   return(
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-[#0f1535] border border-white/10 rounded-[2rem] w-full max-w-3xl max-h-[90vh] shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md" onClick={onClose}>
+      <div className="bg-[#0f1535] border border-white/10 rounded-[2rem] w-full max-w-3xl max-h-[90vh] shadow-2xl flex flex-col overflow-hidden" onClick={e=>e.stopPropagation()}>
         <div className="p-6 border-b border-white/10 flex justify-between items-center shrink-0">
           <div><h2 className="text-2xl font-black text-[#FDB51F]">Evaluation • تحرير التقييم</h2><p className="text-sm text-white/50">Teacher: {teacherName}</p></div>
           <button onClick={onClose} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white">✕</button>
         </div>
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {criteria.map((cr:string,i:number)=>(
+          <div className="flex justify-end mb-2">
+            <button onClick={()=>setEditMode(m=>!m)} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-white/60 hover:bg-white/10 transition">
+              {editMode?"Done editing":"✏️ Customize Criteria"}
+            </button>
+          </div>
+          {customCriteria.map((cr:string,i:number)=>(
             <div key={i} className="bg-white/5 p-4 rounded-2xl border border-white/10">
-              <div className="flex justify-between mb-2"><span className="font-bold text-white/80 text-sm">{cr}</span><span className="font-black text-sky-300">{scores[i]||0}/10</span></div>
-              <input type="range" min="0" max="10" value={scores[i]||0} onChange={e=>{const n=[...scores];n[i]=+e.target.value;setScores(n)}} className="w-full accent-sky-400 cursor-pointer"/>
+              <div className="flex justify-between mb-2 items-center">
+                {editMode ? (
+                   <input value={cr} onChange={e=>{const n=[...customCriteria];n[i]=e.target.value;setCustomCriteria(n)}} className="w-full bg-black/30 border border-white/15 rounded-lg px-2 py-1 text-sm text-white outline-none"/>
+                ) : (
+                   <span className="font-bold text-white/80 text-sm leading-snug">{cr}</span>
+                )}
+                {!editMode&&<span className="font-black text-sky-300 ml-4 shrink-0">{scores[i]||0}/10</span>}
+              </div>
+              {!editMode&&<input type="range" min="0" max="10" value={scores[i]||0} onChange={e=>{const n=[...scores];n[i]=+e.target.value;setScores(n)}} className="w-full accent-sky-400 cursor-pointer"/>}
             </div>
           ))}
         </div>
@@ -1119,7 +1134,12 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
           </div>
         </div>
       )}
-      {editEval&&<EvalModal workId={w.id} evals={evals} setEvals={setEvals} onClose={()=>setEditEval(false)} teacherName="Evaluator" criteria={critList}/>}
+      {editEval&&<EvalModal workId={w.id} evals={evals} setEvals={setEvals} onClose={()=>setEditEval(false)} teacherName="Evaluator" criteria={critList}
+        onCriteriaChange={(newCr)=>{
+          if(comp && typeof (window as any).setGlobalComps !== "undefined"){
+            (window as any).setGlobalComps((p:Comp[])=>p.map(c=>c.id===comp.id?{...c,criteria:newCr}:c));
+          }
+        }}/>}
     </article>
   );
 }
@@ -1520,6 +1540,7 @@ function AppRoutes(){
   });
   const[users,setUsers]=useState<User[]>(()=>ld(SK.u,seedU));
   const[comps,setComps]=useState<Comp[]>(()=>ld(SK.c,seedC));
+  if(typeof window!=="undefined") (window as any).setGlobalComps = setComps;
   const[works,setWorks]=useState<Work[]>(()=>ld(SK.w,seedW));
   const[hydrated,setHydrated]=useState(false);
   const[evals,setEvals]=useState<Ev[]>(()=>ld(SK.e,[]));
@@ -2297,7 +2318,7 @@ function WinnersPage({comps,works,evals,users,likes,setLikes,certs,onPromote,adm
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onClick={()=>setViewEvalId(null)}>
           <div className="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-[#0f1535] p-6 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e=>e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6"><div><h3 className="text-2xl font-black text-white">Scorecard</h3></div><button onClick={()=>setViewEvalId(null)} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white hover:bg-white/10">✕</button></div>
-            <div className="space-y-3">{DEFAULT_CRITERIA.map((cr,i)=>(<div key={i} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3"><span className="text-sm font-bold text-white/75">{cr}</span><span className="text-lg font-black text-sky-300">{viewEv.scores[i]}/10</span></div>))}</div>
+            <div className="space-y-3">{(comps.find(c=>c.id===works.find(w=>w.id===viewEv.workId)?.competitionId)?.criteria?.length?comps.find(c=>c.id===works.find(w=>w.id===viewEv.workId)?.competitionId)!.criteria:DEFAULT_CRITERIA).map((cr:string,i:number)=>(<div key={i} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3"><span className="text-sm font-bold text-white/75">{cr}</span><span className="text-lg font-black text-sky-300">{viewEv.scores[i]}/10</span></div>))}</div>
             <div className="mt-6 flex items-center justify-between rounded-2xl border border-[#FDB51F]/20 bg-[#FDB51F]/10 px-5 py-4"><span className="text-sm font-bold text-[#FFE29A]">Final</span><span className="text-3xl font-black text-white">{tot(viewEv.scores)}/100</span></div>
           </div>
         </div>
