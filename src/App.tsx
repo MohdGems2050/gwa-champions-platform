@@ -290,6 +290,29 @@ function sv(k:string,v:any){
         }
         if(error) console.error("evaluations upsert:", error.message);
       }
+      if(k===SK.arch && Array.isArray(v)){
+        /* ── ARCHIVE: mirrored into `certificates` with prefix __arch__ ── */
+        const payload = v.map((a:any)=>({
+          id:"__arch__"+String(a.id),
+          work_id:"__archive__",
+          student_id:"",
+          comp_id:String(a.compId),
+          comp_name:JSON.stringify({
+             nameEn:a.compName, nameAr:a.compNameAr, archivedAt:a.archivedAt, winners:a.winners
+          }),
+          score:0, rank:0, grade:"", section:"", issued_at:a.archivedAt
+        }));
+        if(payload.length>0 || Array.isArray(v)){
+          const {error} = await supabase.from("certificates").upsert(payload,{onConflict:"id"});
+          if(error) console.error("archive sync:", error.message);
+        }
+        const {data:cloudArchRows,error:listErr} = await supabase.from("certificates").select("id").like("id","__arch__%");
+        if(!listErr && Array.isArray(cloudArchRows)){
+          const keep = new Set(payload.map((r:any)=>r.id));
+          const stale = cloudArchRows.map((r:any)=>String(r.id)).filter((id:string)=>!keep.has(id));
+          for(const id of stale) await supabase.from("certificates").delete().eq("id",id);
+        }
+      }
       if(k===SK.cert && Array.isArray(v) && v.length > 0){
         const rows = v.map((c:any)=>({
           id:String(c.id), work_id:String(c.workId||""), student_id:String(c.studentId||""), comp_id:String(c.compId||""),
@@ -1682,6 +1705,21 @@ function AppRoutes(){
           if((tombRows||[]).length>0) console.info("deleted competitions remembered:", deletedComps.size);
         }catch{}
         try{
+          /* load archive entries from `certificates` (id __arch__*) */
+          const {data:archRows,error:archErr} = await supabase.from("certificates").select("*").like("id","__arch__%");
+          if(!archErr && Array.isArray(archRows)){
+            const list = archRows.map((r:any)=>({
+              id:String(r.id).replace("__arch__",""),
+              compId:String(r.comp_id),
+              compName:JSON.parse(r.comp_name).nameEn,
+              compNameAr:JSON.parse(r.comp_name).nameAr,
+              archivedAt:r.issued_at,
+              winners:JSON.parse(r.comp_name).winners
+            }));
+            if(list.length>0) setArchive(list);
+          }
+        }catch{}
+        try{
           const {data:compRows,error:compErr} = await supabase.from("certificates").select("*").like("id","__comp__%");
           if(!compErr && Array.isArray(compRows)){
             const hasMeta = compRows.some((r:any)=>String(r.id)==="__compmeta__");
@@ -1826,14 +1864,20 @@ function AppRoutes(){
     setComps(p=>p.map(c=>c.id===comp.id?{...c,archived:true}:c));
   }
 
+  function handleRestore(entry:ArchiveEntry){
+    if(!window.confirm("Return this competition to the Active list?\nإعادة هذه المسابقة إلى قائمة المسابقات النشطة؟")) return;
+    setComps(p=>p.map(c=>c.id===entry.compId?{...c,archived:false,started:true}:c));
+    setArchive(p=>p.filter(a=>a.id!==entry.id));
+  }
+
   if(view==="home")return<HomePage onStart={()=>setView("showcase")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")} onTeacher={()=>setView("teacherLogin")}/>;
   if(view==="showcase")return<ShowcasePage comps={comps} users={users} works={works} evals={evals} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} setComps={setComps} setCerts={setCerts} setArchive={setArchive} certs={certs} adminPw={adminPw} approvalCode={approvalCode} onPromote={promoteToCertificate} onBack={()=>setView("home")} onClass={c=>{setSelClass(c);setView("classBoard")}} onParticipate={id=>{setSelCompId(id);setView("studentLogin")}} onWinners={()=>setView("winners")} onAllWorks={()=>setView("allWorks")} />;
   if(view==="allWorks")return<GlobalWorksPage users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} approvalCode={approvalCode} onBack={()=>setView("showcase")}/>;
   if(view==="winners")return<WinnersPage comps={comps} works={works} evals={evals} users={users} likes={likes} setLikes={setLikes} certs={certs} onPromote={promoteToCertificate} adminPw={adminPw} onArchive={handleArchive} onBack={()=>setView("showcase")}/>;
   if(view==="classBoard"&&selClass)return<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} approvalCode={approvalCode} onBack={()=>setView("showcase")}/>;
   if(view==="adminLogin")return<AdminLoginPage adminPw={adminPw} onBack={()=>setView("home")} onOk={()=>setView("admin")}/>;
-  if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} works={works} evals={evals} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw}
-      onDeleteCompetition={c=>{
+  if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} works={works} evals={evals} archive={archive} setArchive={setArchive} adminPw={adminPw} setAdminPw={setAdminPw}
+      onRestore={handleRestore} onDeleteCompetition={c=>{
         const doomed=works.filter(w=>w.competitionId===c.id).map(w=>w.id);
         void cloudDeleteCompetition(c.id, doomed);
         setWorks(p=>p.filter(w=>w.competitionId!==c.id));
@@ -2702,7 +2746,7 @@ function TeacherClassesModal({teacher,onSave,onClose}:{teacher:User;onSave:(list
   );
 }
 
-function AdminPage({users,setUsers,comps,setComps,works,evals,archive,adminPw,setAdminPw,onDeleteCompetition,onBack}:{users:User[];setUsers:React.Dispatch<React.SetStateAction<User[]>>;comps:Comp[];setComps:React.Dispatch<React.SetStateAction<Comp[]>>;works:Work[];evals:Ev[];archive:ArchiveEntry[];adminPw:string;setAdminPw:(pw:string)=>void;onDeleteCompetition:(c:Comp)=>void;onBack:()=>void}){
+function AdminPage({users,setUsers,comps,setComps,works,evals,archive,setArchive,adminPw,setAdminPw,onDeleteCompetition,onRestore,onBack}:{users:User[];setUsers:React.Dispatch<React.SetStateAction<User[]>>;comps:Comp[];setComps:React.Dispatch<React.SetStateAction<Comp[]>>;works:Work[];evals:Ev[];archive:ArchiveEntry[];setArchive:React.Dispatch<React.SetStateAction<ArchiveEntry[]>>;adminPw:string;setAdminPw:(pw:string)=>void;onDeleteCompetition:(c:Comp)=>void;onRestore:(e:ArchiveEntry)=>void;onBack:()=>void}){
   const teachers=useMemo(()=>users.filter(u=>u.role==="teacher"),[users]);
   const[tab,setTab]=useState<"users"|"export"|"comps"|"archive"|"security">("users");
   const[admEditComp,setAdmEditComp]=useState<Comp|null>(null);
@@ -3035,7 +3079,10 @@ function AdminPage({users,setUsers,comps,setComps,works,evals,archive,adminPw,se
                 <div key={entry.id} className="rounded-[2rem] border border-[#FDB51F]/20 bg-gradient-to-br from-[#FDB51F]/8 to-[#1F2E76]/30 p-6 backdrop-blur-sm">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
                     <div><h3 className="text-xl font-black text-white">{entry.compName}</h3><p className="text-base font-bold text-[#FDB51F]" dir="rtl">{entry.compNameAr}</p><p className="text-xs text-white/40 mt-1">Archived: {entry.archivedAt}</p></div>
-                    <Pill t="gold">{entry.winners.length} Winners</Pill>
+                    <div className="flex gap-3">
+                      <button onClick={()=>onRestore(entry)} className="rounded-2xl bg-[#1697E8] border border-sky-400/30 px-5 py-2.5 text-xs font-black text-white hover:bg-sky-400 transition shadow-lg shadow-sky-500/10">🔄 Restore to Active • استعادة</button>
+                      <Pill t="gold">{entry.winners.length} Winners</Pill>
+                    </div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/20 overflow-hidden">
                     <table className="w-full text-sm"><thead><tr className="border-b border-white/10 text-white/40 text-[10px] uppercase tracking-widest"><th className="text-left p-3">Rank</th><th className="text-left p-3">Student</th><th className="text-left p-3">Grade</th><th className="text-left p-3">Section</th><th className="text-right p-3">Score</th></tr></thead>
