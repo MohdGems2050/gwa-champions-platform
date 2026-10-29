@@ -279,7 +279,7 @@ function sv(k:string,v:any){
         }catch(e){ console.warn("approval sync skipped", e); }
       }
       if(k===SK.e && Array.isArray(v) && v.length > 0){
-        const rows = v.map((e:any)=>({
+        const rows = v.filter((e:any)=>e && !deletedWorks.has(String(e.workId))).map((e:any)=>({
           id:String(e.id), work_id:String(e.workId||""), scores:e.scores||[], approved:e.approved||false, at: validDate(e.at)
         }));
         let {error} = await supabase.from("evaluations").upsert(rows,{onConflict:"id"});
@@ -1042,6 +1042,14 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
       }
       /* cloud records: always remove, even if the competition no longer exists */
       if (isSupabaseConfigured) {
+        /* 1) tombstone in evaluations so it never returns on any device */
+        await supabase.from("evaluations").upsert({
+          id: "__workdel__" + String(w.id),
+          work_id: "__workdel__",
+          scores: [],
+          approved: true
+        }, { onConflict: "id" });
+        /* 2) delete actual records */
         await supabase.from("works_cloud").delete().eq("id", w.id);
         await supabase.from("evaluations").delete().eq("work_id", w.id);
         await supabase.from("evaluations").delete().eq("id", "__approval__" + w.id);
@@ -1619,10 +1627,14 @@ function AppRoutes(){
   useEffect(()=>{
     async function loadFromSupabase(){
       try {
-        /* load user tombstones first so deleted accounts are never restored */
+        /* load system tombstones first so deleted items are never restored */
         try{
-          const {data:tombRows} = await supabase.from("evaluations").select("id").like("id","__userdel__%");
-          (tombRows||[]).forEach((r:any)=>deletedUsers.add(String(r.id).replace("__userdel__","")));
+          const {data:tombRows} = await supabase.from("evaluations").select("id").like("id","__%del__%");
+          (tombRows||[]).forEach((r:any)=>{
+            const id = String(r.id);
+            if(id.startsWith("__userdel__")) deletedUsers.add(id.replace("__userdel__",""));
+            if(id.startsWith("__workdel__")) deletedWorks.add(id.replace("__workdel__",""));
+          });
         }catch{}
 
         const {data:dbUsers} = await supabase.from("accounts").select("*");
@@ -1643,7 +1655,7 @@ function AppRoutes(){
         }
         const {data:dbWorks} = await supabase.from("works_cloud").select("*").order('at',{ascending:false});
         if(dbWorks && dbWorks.length > 0){
-          const mapped = dbWorks.filter((w:any)=>!deletedWorks.has(String(w.id))).map((w:any)=>({
+          const mapped = dbWorks.filter((w:any)=>w && !deletedWorks.has(String(w.id))).map((w:any)=>({
             id:w.id, competitionId:w.competition_id, studentId:w.student_id,
             title:w.title, desc:w.desc||"", videoUrl:w.video_url, thumb:w.thumb||"", at:w.at||new Date().toISOString(),
             status:(w.status==="approved"?"approved":"pending") as WorkStatus,
