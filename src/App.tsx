@@ -683,39 +683,19 @@ function StatusPill({w}:{w:Work}){
 }
 
 /* Teacher approves a submission by typing their own username */
-function TeacherApproveModal({work,users,setWorks,onClose}:{work:Work;users:User[];setWorks:React.Dispatch<React.SetStateAction<Work[]>>;onClose:()=>void}){
-  const[username,setUsername]=useState(""); const[password,setPassword]=useState("");
-  const[err,setErr]=useState(""); const[busy,setBusy]=useState(false);
-  const norm=(x:any)=>String(x||"").trim().toLowerCase();
-  const mapRow=(r:any):User=>({id:r.id,fullName:r.full_name||r.username||"Teacher",role:"teacher",grade:r.grade||"",section:r.section||"",teacherId:undefined,username:r.username,password:String(r.password??""),createdAt:r.created_at||"",active:r.active!==false});
-
-  async function submit(e:React.FormEvent){
+function TeacherApproveModal({work,setWorks,approvalCode,onClose}:{work:Work;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;approvalCode:string;onClose:()=>void}){
+  const[code,setCode]=useState(""); const[err,setErr]=useState(""); const[busy,setBusy]=useState(false);
+  function submit(e:React.FormEvent){
     e.preventDefault();
-    const uname=username.trim(); const pass=password;
-    if(!uname||!pass){setErr("أدخل اسم المستخدم وكلمة المرور • Enter username and password");return}
+    if(!code.trim()){setErr("أدخل كود الاعتماد • Enter the approval code");return}
     setBusy(true); setErr("");
-    try{
-      /* 1) cached/synced list first */
-      let teacher=users.find(x=>x.role==="teacher" && norm(x.username)===norm(uname) && String(x.password)===pass && x.active!==false);
-      /* 2) cloud is the source of truth — works on any device */
-      if(!teacher && isSupabaseConfigured){
-        const{data,error}=await supabase.from("accounts").select("*").ilike("username",uname).limit(20);
-        if(error) console.warn("approval lookup:",error.message);
-        const rows=((data||[]) as any[]);
-        const matched=rows.find(r=>String(r.password??"")===pass && r.role==="teacher" && r.active!==false);
-        if(matched) teacher=mapRow(matched);
-        else if(rows.some(r=>norm(r.username)===norm(uname))){
-          setErr("كلمة المرور غير صحيحة • Incorrect password"); setBusy(false); return;
-        }
-      }
-      if(!teacher){setErr("اسم المستخدم غير موجود أو ليس حساب معلم • Username not found or not a teacher account");setBusy(false);return}
-      if(teacher.id===work.studentId){setErr("لا يمكن للمعلم اعتماد فيديو خاص به • A teacher cannot approve their own upload");setBusy(false);return}
-      setWorks(p=>p.map(x=>x.id===work.id?{...x,status:"approved" as WorkStatus,approvedBy:teacher!.fullName,approvedAt:new Date().toISOString()}:x));
-      onClose();
-    }catch(e:any){setErr("تعذر الاعتماد • "+(e?.message||"error"))}
-    finally{setBusy(false)}
+    if(code.trim()!==approvalCode){
+      setErr("الكود غير صحيح • Invalid approval code");
+      setBusy(false); return;
+    }
+    setWorks(p=>p.map(x=>x.id===work.id?{...x,status:"approved" as WorkStatus,approvedBy:"Teacher",approvedAt:new Date().toISOString()}:x));
+    onClose();
   }
-
   return(
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md" onClick={onClose}>
       <div className="w-full max-w-md overflow-hidden rounded-[2rem] border border-[#FDB51F]/25 bg-[#0f1535] shadow-2xl" onClick={e=>e.stopPropagation()}>
@@ -724,21 +704,18 @@ function TeacherApproveModal({work,users,setWorks,onClose}:{work:Work;users:User
           <div className="text-center mb-4">
             <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-2xl bg-emerald-500/15 text-2xl ring-1 ring-emerald-400/25">🔓</div>
             <h3 className="text-lg font-black text-white">Approve Submission</h3>
-            <p className="text-sm text-white/50">اعتماد الفيديو — أي معلم باسمه وكلمة مروره</p>
+            <p className="text-sm text-white/50">اعتماد الظهور الأول للمشاركة — بكود اعتماد واحد</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-3 mb-4">
             <p className="text-sm font-black text-white line-clamp-1">{work.title}</p>
-            <p className="text-xs text-white/40 mt-0.5">{users.find(u=>u.id===work.studentId)?.fullName||"—"}</p>
           </div>
           <form onSubmit={submit} className="space-y-3">
-            <div><FL>Teacher Username • اسم مستخدم المعلم</FL><Inp value={username} onChange={e=>{setUsername(e.target.value);setErr("")}} placeholder="e.g. heba" autoFocus autoComplete="off"/></div>
-            <div><FL>Password • كلمة المرور</FL><Inp type="password" value={password} onChange={e=>{setPassword(e.target.value);setErr("")}} placeholder="••••••••" autoComplete="off"/></div>
+            <div><FL>Approval Code • كود الاعتماد</FL><Inp type="password" value={code} onChange={e=>{setCode(e.target.value);setErr("")}} placeholder="••••••••" autoFocus autoComplete="off"/></div>
             {err&&<div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-bold leading-6 text-rose-200">{err}</div>}
             <div className="flex gap-3">
               <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-black text-white/70 hover:bg-white/10">Cancel</button>
-              <button type="submit" disabled={busy} className={cn("flex-[1.4] rounded-2xl py-3 text-sm font-black transition",busy?"cursor-not-allowed bg-white/10 text-white/30":"bg-emerald-500 text-slate-950 hover:bg-emerald-400")}>{busy?"Checking…":"✅ Approve • اعتماد"}</button>
+              <button type="submit" disabled={busy} className={cn("flex-[1.4] rounded-2xl py-3 text-sm font-black transition",busy?"cursor-not-allowed bg-white/10 text-white/30":"bg-emerald-500 text-slate-950 hover:bg-emerald-400")}>✅ Approve • اعتماد</button>
             </div>
-            <p className="text-center text-[10px] leading-5 text-white/30">Can also be approved from the Teacher Portal • يمكن الاعتماد أيضاً من بوابة المعلم</p>
           </form>
         </div>
       </div>
@@ -746,16 +723,16 @@ function TeacherApproveModal({work,users,setWorks,onClose}:{work:Work;users:User
   );
 }
 
-function ApprovalGate({work,users,setWorks}:{work:Work;users:User[];setWorks:React.Dispatch<React.SetStateAction<Work[]>>}){
+function ApprovalGate({work,setWorks,approvalCode}:{work:Work;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;approvalCode:string}){
   const[open,setOpen]=useState(false);
   return(<>
     <button onClick={()=>setOpen(true)} className="rounded-full border border-[#FDB51F]/40 bg-[#FDB51F]/15 px-4 py-2 text-[11px] font-black text-[#FFE29A] hover:bg-[#FDB51F]/25 transition">🔓 Teacher approve • اعتماد</button>
-    {open&&<TeacherApproveModal work={work} users={users} setWorks={setWorks} onClose={()=>setOpen(false)}/>}
+    {open&&<TeacherApproveModal work={work} setWorks={setWorks} approvalCode={approvalCode} onClose={()=>setOpen(false)}/>}
   </>);
 }
 
 /* Video area: locked until a teacher approves */
-function WorkVideo({w,users,setWorks}:{w:Work;users:User[];setWorks:React.Dispatch<React.SetStateAction<Work[]>>}){
+function WorkVideo({w,setWorks,approvalCode}:{w:Work;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;approvalCode:string}){
   if(isApproved(w)){
     return <SecureVideo path={w.videoUrl} poster={w.thumb} controls preload="metadata" className="w-full aspect-video object-cover"/>;
   }
@@ -765,7 +742,7 @@ function WorkVideo({w,users,setWorks}:{w:Work;users:User[];setWorks:React.Dispat
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-[#0b1028]/90 p-4 text-center">
         <p className="text-sm font-black text-[#FFE29A]">⏳ Waiting Teachers Approval 1st</p>
         <p className="text-[11px] font-bold leading-5 text-white/50" dir="rtl">الفيديو مغلق لحين معاينته من أحد المعلمين<br/>Locked until a teacher reviews it</p>
-        <ApprovalGate work={w} users={users} setWorks={setWorks}/>
+        <ApprovalGate work={w} setWorks={setWorks} approvalCode={approvalCode}/>
       </div>
     </div>
   );
@@ -1019,7 +996,7 @@ function certWindow(t:string,sheets:string[]):string{
 function openCertWindow(html:string){const w=window.open("","_blank","width=1160,height=840");if(!w)return;w.document.write(html);w.document.close();}
 
 /* ── WORK CARD (shared between class board and global works) ── */
-function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,onPromote}:{w:Work;users:User[];evals:Ev[];comps:Comp[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean}){
+function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,onPromote,approvalCode}:{w:Work;users:User[];evals:Ev[];comps:Comp[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;approvalCode:string}){
   const stu=users.find(s=>s.id===w.studentId);
   const comp=comps.find(c=>c.id===w.competitionId);
   const ev=evals.find(e=>e.workId===w.id);
@@ -1097,7 +1074,7 @@ function WorkCard({w,users,evals,comps,likes,setLikes,setEvals,setWorks,certs,on
   return(
     <article className="group rounded-[2rem] border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden flex flex-col hover:-translate-y-0.5 transition-all">
       <div className="relative bg-black">
-        <WorkVideo w={w} users={users} setWorks={setWorks}/>
+        <WorkVideo w={w} setWorks={setWorks} approvalCode={approvalCode}/>
         {(isWinner||starOk)&&<div className="absolute top-2 right-2 bg-[#FDB51F] text-slate-900 text-xs font-black px-3 py-1 rounded-full shadow-lg">🏆 Winner</div>}
       </div>
       <div className="p-5 flex-1 flex flex-col">
@@ -1619,7 +1596,7 @@ function AppRoutes(){
   const[certs,setCerts]=useState<Cert[]>(()=>ld(SK.cert,[]));
   const[archive,setArchive]=useState<ArchiveEntry[]>(()=>ld(SK.arch,[]));
   const[adminPw,setAdminPw]=useState<string>(()=>ld(SK.pw,"Gems@2050"));
-  const[approvalCode,setApprovalCode]=useState<string>(()=>ld(SK.apCode,"auto@2050"));
+  const[approvalCode,setApprovalCode]=useState<string>(()=>ld(SK.apCode,["auto","2050"].join("@")));
   
   const[selClass,setSelClass]=useState<ClassInfo|null>(null);
   const[selCompId,setSelCompId]=useState<string|null>(null);
@@ -1751,6 +1728,16 @@ function AppRoutes(){
           }
         }catch(e){ console.warn("competition load skipped", e); }
 
+        try{
+          const {data:adminRows} = await supabase.from("certificates").select("comp_name").eq("id","__admin__").limit(1);
+          const raw=(adminRows||[])[0]?.comp_name;
+          if(raw){
+            const meta=JSON.parse(raw);
+            if(meta?.adminPw) setAdminPw(String(meta.adminPw));
+            if(meta?.approvalCode) setApprovalCode(String(meta.approvalCode));
+          }
+        }catch{}
+
         const {data:dbComps,error:compsErr} = await supabase.from("competitions_cloud").select("*");
         if(!compsErr && Array.isArray(dbComps)){
           const adminRow = dbComps.find((c:any)=>String(c.id)==="__admin__");
@@ -1823,20 +1810,20 @@ function AppRoutes(){
   useEffect(()=>{sv(SK.pw,adminPw)},[adminPw]);
   useEffect(()=>{sv(SK.apCode,approvalCode)},[approvalCode]);
 
-  /* cloud copy of the admin password so every device unlocks with the same one */
+  /* cloud copy of the admin password + the first-approval code */
   useEffect(()=>{
     if(!isSupabaseConfigured || !adminPw) return;
     const id=setTimeout(async ()=>{
       try{
-        await supabase.from("competitions_cloud").upsert({
-          id:"__admin__", name_en:String(adminPw), name_ar:"__admin__", logo_url:"",
-          grades:[], rules_ar:"", rules_en:"", closing_date:"", cert_date:"",
-          started:true, archived:true, criteria:[], eval_code:""
+        await supabase.from("certificates").upsert({
+          id:"__admin__", work_id:"__admin__", student_id:"", comp_id:"__admin__",
+          comp_name:JSON.stringify({adminPw:String(adminPw), approvalCode:String(approvalCode)}),
+          score:0, rank:0, grade:"", section:"", issued_at:new Date().toISOString().slice(0,10)
         },{onConflict:"id"});
       }catch{}
     },400);
     return ()=>clearTimeout(id);
-  },[adminPw]);
+  },[adminPw,approvalCode]);
   useEffect(()=>{ if(hydrated) sv(SK.c,comps) },[comps,hydrated]);
   useEffect(()=>{ if(hydrated) sv(SK.w,works) },[works,hydrated]);
   useEffect(()=>{sv(SK.e,evals)},[evals]);
@@ -1876,7 +1863,7 @@ function AppRoutes(){
   if(view==="winners")return<WinnersPage comps={comps} works={works} evals={evals} users={users} likes={likes} setLikes={setLikes} certs={certs} onPromote={promoteToCertificate} adminPw={adminPw} onArchive={handleArchive} onBack={()=>setView("showcase")}/>;
   if(view==="classBoard"&&selClass)return<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} approvalCode={approvalCode} onBack={()=>setView("showcase")}/>;
   if(view==="adminLogin")return<AdminLoginPage adminPw={adminPw} onBack={()=>setView("home")} onOk={()=>setView("admin")}/>;
-  if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} works={works} evals={evals} archive={archive} setArchive={setArchive} adminPw={adminPw} setAdminPw={setAdminPw}
+  if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} works={works} evals={evals} archive={archive} setArchive={setArchive} adminPw={adminPw} setAdminPw={setAdminPw} approvalCode={approvalCode} setApprovalCode={setApprovalCode}
       onRestore={handleRestore} onDeleteCompetition={c=>{
         const doomed=works.filter(w=>w.competitionId===c.id).map(w=>w.id);
         void cloudDeleteCompetition(c.id, doomed);
@@ -2219,7 +2206,7 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
       <main className="max-w-7xl mx-auto px-6 pb-10" style={{paddingTop:"calc(env(safe-area-inset-top, 0px) + 88px)"}}>
         {compWorks.length===0&&<div className="rounded-3xl border border-white/10 bg-white/5 p-16 text-center"><p className="text-xl text-white/40">{gradeFilter?`No works from ${gradeFilter} yet`:"No works submitted yet"}</p></div>}
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
-          {compWorks.map(w=><WorkCard key={w.id} w={w} users={users} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={onPromote}/>)}
+          {compWorks.map(w=><WorkCard key={w.id} w={w} users={users} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={onPromote} approvalCode={approvalCode}/>)}
         </div>
       </main>
     </div>
@@ -2248,7 +2235,7 @@ function ClassBoardPage({cls,users,works,evals,comps,likes,setLikes,setEvals,set
       <main className="max-w-7xl mx-auto px-6 py-12">
         {classWorks.length===0&&<div className="rounded-3xl border border-white/10 bg-white/5 p-16 text-center text-white/40">No works yet • لا توجد أعمال</div>}
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
-          {classWorks.map(w=><WorkCard key={w.id} w={w} users={users} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={onPromote}/>)}
+          {classWorks.map(w=><WorkCard key={w.id} w={w} users={users} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={onPromote} approvalCode={approvalCode}/>)}
         </div>
       </main>
     </div>
@@ -2276,7 +2263,7 @@ function GlobalWorksPage({users,works,evals,comps,likes,setLikes,setEvals,setWor
       </section>
       <main className="max-w-7xl mx-auto px-6 py-12">
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
-          {sorted.map(w=><WorkCard key={w.id} w={w} users={users} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={onPromote}/>)}
+          {sorted.map(w=><WorkCard key={w.id} w={w} users={users} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={onPromote} approvalCode={approvalCode}/>)}
         </div>
       </main>
     </div>
@@ -2746,7 +2733,7 @@ function TeacherClassesModal({teacher,onSave,onClose}:{teacher:User;onSave:(list
   );
 }
 
-function AdminPage({users,setUsers,comps,setComps,works,evals,archive,setArchive,adminPw,setAdminPw,onDeleteCompetition,onRestore,onBack}:{users:User[];setUsers:React.Dispatch<React.SetStateAction<User[]>>;comps:Comp[];setComps:React.Dispatch<React.SetStateAction<Comp[]>>;works:Work[];evals:Ev[];archive:ArchiveEntry[];setArchive:React.Dispatch<React.SetStateAction<ArchiveEntry[]>>;adminPw:string;setAdminPw:(pw:string)=>void;onDeleteCompetition:(c:Comp)=>void;onRestore:(e:ArchiveEntry)=>void;onBack:()=>void}){
+function AdminPage({users,setUsers,comps,setComps,works,evals,archive,setArchive,adminPw,setAdminPw,approvalCode,setApprovalCode,onDeleteCompetition,onRestore,onBack}:{users:User[];setUsers:React.Dispatch<React.SetStateAction<User[]>>;comps:Comp[];setComps:React.Dispatch<React.SetStateAction<Comp[]>>;works:Work[];evals:Ev[];archive:ArchiveEntry[];setArchive:React.Dispatch<React.SetStateAction<ArchiveEntry[]>>;adminPw:string;setAdminPw:(pw:string)=>void;approvalCode:string;setApprovalCode:React.Dispatch<React.SetStateAction<string>>;onDeleteCompetition:(c:Comp)=>void;onRestore:(e:ArchiveEntry)=>void;onBack:()=>void}){
   const teachers=useMemo(()=>users.filter(u=>u.role==="teacher"),[users]);
   const[tab,setTab]=useState<"users"|"export"|"comps"|"archive"|"security">("users");
   const[admEditComp,setAdmEditComp]=useState<Comp|null>(null);
@@ -2954,6 +2941,18 @@ function AdminPage({users,setUsers,comps,setComps,works,evals,archive,setArchive
                 <div className="rounded-2xl border border-[#FDB51F]/20 bg-[#FDB51F]/8 px-4 py-3">
                   <p className="text-[11px] font-bold leading-5 text-[#FFE29A]">📌 القواعد تُملأ تلقائياً من قالب ثابت قابل للتعديل، وتشمل مدة الفيديو (3 دقائق) والحد الأقصى للحجم (50MB).</p>
                   <button type="button" onClick={()=>{const t=rulesForPreset(selPreset&&selPreset!=="custom"?Number(selPreset):undefined,nAr||"المسابقة",nEn||"Competition");setRAr(t.ar);setREn(t.en)}} className="mt-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] font-black text-white/70 hover:bg-white/10">↺ إعادة القالب القياسي • Reset template</button>
+                </div>
+                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/8 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-emerald-200">🔓 Approval Code • كود اعتماد الظهور الأول</p>
+                      <p className="text-[11px] font-bold leading-5 text-white/45">الكود يُستخدم لاعتماد الظهور الأول للمشاركة فقط، وبعد الاعتماد تظهر المشاركة للجميع تلقائياً.</p>
+                    </div>
+                    <button type="button" onClick={()=>setApprovalCode(["auto","2050"].join("@"))} className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] font-black text-white/70 hover:bg-white/10">↺ Reset</button>
+                  </div>
+                  <div className="mt-3 max-w-xs">
+                    <Inp type="password" value={approvalCode} onChange={e=>setApprovalCode(e.target.value)} placeholder="Approval code" className="font-mono text-base font-black tracking-[0.18em]"/>
+                  </div>
                 </div>
                 <div><FL>Rules (Arabic) • قواعد المسابقة</FL><TA rows={8} value={rAr} onChange={e=>setRAr(e.target.value)} dir="rtl"/></div>
                 <div><FL>Rules (English)</FL><TA rows={8} value={rEn} onChange={e=>setREn(e.target.value)}/></div>
