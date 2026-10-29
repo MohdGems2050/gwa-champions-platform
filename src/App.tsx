@@ -19,7 +19,7 @@ type ClassInfo = { grade:string; section:string; teacherId:string; teacherName:s
 type ArchiveEntry = { id:string; compId:string; compName:string; compNameAr:string; archivedAt:string; winners:Array<{rank:number; studentName:string; grade:string; section:string; score:number}> };
 
 /* ═══════ CONSTANTS ═══════ */
-const SK = { u:"gwa-u-v8", c:"gwa-c-v8", w:"gwa-w-v8", e:"gwa-e-v8", l:"gwa-l-v8", cert:"gwa-cert-v8", arch:"gwa-arch-v8", pw:"gwa-pw-v8" };
+const SK = { u:"gwa-u-v8", c:"gwa-c-v8", w:"gwa-w-v8", e:"gwa-e-v8", l:"gwa-l-v8", cert:"gwa-cert-v8", arch:"gwa-arch-v8", pw:"gwa-pw-v8", apCode:"gwa-apcode-v1" };
 const GRADES = ["KG 1","KG 2","Grade 1","Grade 2","Grade 3","Grade 4","Grade 5","Grade 6","Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"];
 const _SECTIONS = ["A","B","C","D","X","Y"];
 const DEFAULT_CRITERIA = ["Creativity • الإبداع","Clarity • الوضوح","Content • المحتوى","Language • اللغة","Confidence • الثقة","Design • التصميم","Compliance • الالتزام","Organization • التنظيم","Technology • التقنية","Final Impact • الإخراج"];
@@ -1569,6 +1569,7 @@ function AppRoutes(){
   const[certs,setCerts]=useState<Cert[]>(()=>ld(SK.cert,[]));
   const[archive,setArchive]=useState<ArchiveEntry[]>(()=>ld(SK.arch,[]));
   const[adminPw,setAdminPw]=useState<string>(()=>ld(SK.pw,"Gems@2050"));
+  const[approvalCode,setApprovalCode]=useState<string>(()=>ld(SK.apCode,"auto@2050"));
   
   const[selClass,setSelClass]=useState<ClassInfo|null>(null);
   const[selCompId,setSelCompId]=useState<string|null>(null);
@@ -1755,6 +1756,7 @@ function AppRoutes(){
 
   useEffect(()=>{sv(SK.u,users)},[users]);
   useEffect(()=>{sv(SK.pw,adminPw)},[adminPw]);
+  useEffect(()=>{sv(SK.apCode,approvalCode)},[approvalCode]);
 
   /* cloud copy of the admin password so every device unlocks with the same one */
   useEffect(()=>{
@@ -1798,10 +1800,10 @@ function AppRoutes(){
   }
 
   if(view==="home")return<HomePage onStart={()=>setView("showcase")} onAdmin={()=>setView("adminLogin")} onStudent={()=>setView("studentLogin")} onTeacher={()=>setView("teacherLogin")}/>;
-  if(view==="showcase")return<ShowcasePage comps={comps} users={users} works={works} evals={evals} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} setComps={setComps} setCerts={setCerts} setArchive={setArchive} certs={certs} adminPw={adminPw} onPromote={promoteToCertificate} onBack={()=>setView("home")} onClass={c=>{setSelClass(c);setView("classBoard")}} onParticipate={id=>{setSelCompId(id);setView("studentLogin")}} onWinners={()=>setView("winners")} onAllWorks={()=>setView("allWorks")} />;
-  if(view==="allWorks")return<GlobalWorksPage users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/>;
+  if(view==="showcase")return<ShowcasePage comps={comps} users={users} works={works} evals={evals} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} setComps={setComps} setCerts={setCerts} setArchive={setArchive} certs={certs} adminPw={adminPw} approvalCode={approvalCode} onPromote={promoteToCertificate} onBack={()=>setView("home")} onClass={c=>{setSelClass(c);setView("classBoard")}} onParticipate={id=>{setSelCompId(id);setView("studentLogin")}} onWinners={()=>setView("winners")} onAllWorks={()=>setView("allWorks")} />;
+  if(view==="allWorks")return<GlobalWorksPage users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} approvalCode={approvalCode} onBack={()=>setView("showcase")}/>;
   if(view==="winners")return<WinnersPage comps={comps} works={works} evals={evals} users={users} likes={likes} setLikes={setLikes} certs={certs} onPromote={promoteToCertificate} adminPw={adminPw} onArchive={handleArchive} onBack={()=>setView("showcase")}/>;
-  if(view==="classBoard"&&selClass)return<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} onBack={()=>setView("showcase")}/>;
+  if(view==="classBoard"&&selClass)return<ClassBoardPage cls={selClass} users={users} works={works} evals={evals} comps={comps} likes={likes} setLikes={setLikes} setEvals={setEvals} setWorks={setWorks} certs={certs} onPromote={promoteToCertificate} approvalCode={approvalCode} onBack={()=>setView("showcase")}/>;
   if(view==="adminLogin")return<AdminLoginPage adminPw={adminPw} onBack={()=>setView("home")} onOk={()=>setView("admin")}/>;
   if(view==="admin")return<AdminPage users={users} setUsers={setUsers} comps={comps} setComps={setComps} works={works} evals={evals} archive={archive} adminPw={adminPw} setAdminPw={setAdminPw}
       onDeleteCompetition={c=>{
@@ -1991,7 +1993,7 @@ function HomePage({onStart,onAdmin,onStudent,onTeacher}:{onStart:()=>void;onAdmi
 /* ════════════════════════════════════
    2. SHOWCASE
    ════════════════════════════════════ */
-function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,setComps,setCerts,setArchive,certs,adminPw,onPromote,onBack,onParticipate,onWinners,onAllWorks}:{comps:Comp[];users:User[];works:Work[];evals:Ev[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;setComps:React.Dispatch<React.SetStateAction<Comp[]>>;setCerts:React.Dispatch<React.SetStateAction<Cert[]>>;setArchive:React.Dispatch<React.SetStateAction<ArchiveEntry[]>>;certs:Cert[];adminPw:string;onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void;onClass:(c:ClassInfo)=>void;onParticipate:(id:string)=>void;onWinners:()=>void;onAllWorks:()=>void}){
+function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,setComps,setCerts,setArchive,certs,adminPw,approvalCode,onPromote,onBack,onParticipate,onWinners,onAllWorks}:{comps:Comp[];users:User[];works:Work[];evals:Ev[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;setComps:React.Dispatch<React.SetStateAction<Comp[]>>;setCerts:React.Dispatch<React.SetStateAction<Cert[]>>;setArchive:React.Dispatch<React.SetStateAction<ArchiveEntry[]>>;certs:Cert[];adminPw:string;approvalCode:string;onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void;onClass:(c:ClassInfo)=>void;onParticipate:(id:string)=>void;onWinners:()=>void;onAllWorks:()=>void}){
   const evaluatedCount=useMemo(()=>works.filter(w=>isApproved(w)&&evals.some(e=>e.workId===w.id&&e.approved!==false)).length,[works,evals]);
   /* ── ADMIN MODE (unlocked only with the admin password) ── */
   const[adminMode,setAdminMode]=useState(false);
@@ -2156,7 +2158,7 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
 /* ════════════════════════════════════
    3. CLASS BOARD
    ════════════════════════════════════ */
-function ClassBoardPage({cls,users,works,evals,comps,likes,setLikes,setEvals,setWorks,certs,onPromote,onBack}:{cls:ClassInfo;users:User[];works:Work[];evals:Ev[];comps:Comp[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void}){
+function ClassBoardPage({cls,users,works,evals,comps,likes,setLikes,setEvals,setWorks,certs,onPromote,approvalCode,onBack}:{cls:ClassInfo;users:User[];works:Work[];evals:Ev[];comps:Comp[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;approvalCode:string;onBack:()=>void}){
   const classWorks=useMemo(()=>works.filter(w=>{const s=users.find(u=>u.id===w.studentId);return s&&s.grade===cls.grade&&s.section===cls.section;}),[cls,users,works]);
   return(
     <div className="relative min-h-screen bg-[#050916] text-white"><Bg/>
@@ -2185,7 +2187,7 @@ function ClassBoardPage({cls,users,works,evals,comps,likes,setLikes,setEvals,set
 /* ════════════════════════════════════
    4. GLOBAL WORKS
    ════════════════════════════════════ */
-function GlobalWorksPage({users,works,evals,comps,likes,setLikes,setEvals,setWorks,certs,onPromote,onBack}:{users:User[];works:Work[];evals:Ev[];comps:Comp[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;onBack:()=>void}){
+function GlobalWorksPage({users,works,evals,comps,likes,setLikes,setEvals,setWorks,certs,onPromote,approvalCode,onBack}:{users:User[];works:Work[];evals:Ev[];comps:Comp[];likes:Like[];setLikes:React.Dispatch<React.SetStateAction<Like[]>>;setEvals:React.Dispatch<React.SetStateAction<Ev[]>>;setWorks:React.Dispatch<React.SetStateAction<Work[]>>;certs:Cert[];onPromote:(wid:string,cid:string,code:string)=>boolean;approvalCode:string;onBack:()=>void}){
   const sorted=useMemo(()=>[...works].sort((a,b)=>b.at.localeCompare(a.at)),[works]);
   return(
     <div className="relative min-h-screen bg-[#0d1230] text-white"><Bg/>
