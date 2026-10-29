@@ -81,8 +81,8 @@ const COMP_PRESETS: CompPreset[] = [
 
 
 /* ═══════ STANDARD COMPETITION RULES (fixed template, editable by admin) ═══════ */
-const RULE_LIMITS_AR = "• مدة الفيديو: 3 دقائق كحد أقصى.\n• الحد الأقصى لحجم الفيديو: 50 ميجابايت (حد التخزين السحابي الحالي).";
-const RULE_LIMITS_EN = "• Maximum video duration: 3 minutes.\n• Maximum video file size: 50 MB (current cloud storage limit).";
+const RULE_LIMITS_AR = "• المشاركات المسموحة: فيديو (حتى 3 دقائق) أو صورة.\n• الحد الأقصى لحجم الملف: 50 ميجابايت.";
+const RULE_LIMITS_EN = "• Accepted submissions: video (max 3 mins) or image.\n• Maximum file size: 50 MB.";
 
 function ruleTemplateAr(nameAr:string){
   return `قواعد مسابقة «${nameAr}»\n`
@@ -442,14 +442,18 @@ function SecureVideo(props: React.VideoHTMLAttributes<HTMLVideoElement> & { path
   return (
     <>
       <div className={wrapperClass}>
-        <video
-          {...videoProps}
-          src={url}
-          /* the native fullscreen control hides the header by design → disabled */
-          controlsList="nodownload nofullscreen"
-          disablePictureInPicture
-          onDoubleClick={()=>setOpenTheater(true)}
-        />
+        {path.match(/\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i) ? (
+          <img src={url} alt="Submission" className="w-full h-full object-contain cursor-pointer" onClick={()=>setOpenTheater(true)}/>
+        ) : (
+          <video
+            {...videoProps}
+            src={url}
+            /* the native fullscreen control hides the header by design → disabled */
+            controlsList="nodownload nofullscreen"
+            disablePictureInPicture
+            onDoubleClick={()=>setOpenTheater(true)}
+          />
+        )}
         {theater && (
           <button
             type="button"
@@ -599,15 +603,19 @@ function VideoTheater({src,poster,title,onClose}:{src:string;poster?:string;titl
         >✕ Close · Exit theater</button>
       </div>
       <div className="flex flex-1 items-center justify-center px-3 pb-5 sm:px-6" onClick={e=>e.stopPropagation()}>
-        <video
-          src={src}
-          poster={poster}
-          controls
-          autoPlay
-          playsInline
-          controlsList="nodownload"
-          className="max-h-full w-full max-w-6xl rounded-2xl bg-black object-contain shadow-2xl"
-        />
+        {src.match(/\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i) ? (
+          <img src={src} alt="Full view" className="max-h-full w-full max-w-6xl rounded-2xl object-contain shadow-2xl"/>
+        ) : (
+          <video
+            src={src}
+            poster={poster}
+            controls
+            autoPlay
+            playsInline
+            controlsList="nodownload"
+            className="max-h-full w-full max-w-6xl rounded-2xl bg-black object-contain shadow-2xl"
+          />
+        )}
       </div>
       <p className="pb-3 text-center text-[11px] font-bold text-white/35">Esc أو ✕ للخروج — الشريط العلوي يبقى متاحاً</p>
     </div>,
@@ -2887,6 +2895,25 @@ function AdminPage({users,setUsers,comps,setComps,works,evals,archive,adminPw,se
                 <div><FL>Rules (Arabic) • قواعد المسابقة</FL><TA rows={8} value={rAr} onChange={e=>setRAr(e.target.value)} dir="rtl"/></div>
                 <div><FL>Rules (English)</FL><TA rows={8} value={rEn} onChange={e=>setREn(e.target.value)}/></div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3"><div><FL>Start Date • البدء</FL><Inp type="date" value={cStart} onChange={e=>setCStart(e.target.value)}/></div><div><FL>Close Date • الإغلاق</FL><Inp type="date" value={cClose} onChange={e=>setCClose(e.target.value)}/></div><div><FL>Certs Date • الشهادات</FL><Inp type="date" value={cCert} onChange={e=>setCCert(e.target.value)}/></div></div>
+                
+                <div className="rounded-2xl border border-[#1697E8]/25 bg-[#1697E8]/8 p-4 mt-2">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-black text-sky-200">📋 Assessment Criteria • معايير التقييم</p>
+                    <span className="text-[10px] font-bold text-white/40">تُملأ تلقائياً من القالب</span>
+                  </div>
+                  <div className="space-y-2">
+                    {compCriteria.map((cr,i)=>(
+                      <div key={i} className="flex gap-2 items-center">
+                        <span className="flex h-8 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-500/15 text-[11px] font-black text-sky-300">{i+1}</span>
+                        <Inp value={cr} onChange={e=>{const n=[...compCriteria];n[i]=e.target.value;setCompCriteria(n)}} className="h-9 text-xs"/>
+                      </div>
+                    ))}
+                  </div>
+                  {compCriteria.length<10&&(
+                    <button type="button" onClick={()=>setCompCriteria(p=>[...p,"New criterion • معيار جديد"])} className="mt-2 w-full rounded-xl border border-dashed border-white/20 bg-white/5 py-2 text-xs font-bold text-white/50 hover:bg-white/10">+ Add criterion</button>
+                  )}
+                </div>
+
                 {cmsg&&<div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">{cmsg}</div>}
                 <button type="submit" className="w-full rounded-2xl bg-[#FDB51F] text-slate-950 font-black py-3.5 hover:bg-[#F7C84A] shadow-lg">Save Competition 🏆</button>
               </form>
@@ -3055,9 +3082,9 @@ function ConsentModal({student,compAr,compEn,onOk,onNo}:{student:User;compAr:str
       <div className="w-full max-w-2xl rounded-[2.5rem] border border-white/10 bg-[#0a1128] shadow-2xl overflow-hidden max-h-[95vh] flex flex-col"><div className="h-1.5 w-full bg-gradient-to-r from-[#FDB51F] via-[#1697E8] to-[#10B09B] shrink-0"/>
         <div className="p-8 overflow-y-auto"><div className="text-center mb-6"><div className="text-4xl mb-3">📋</div><h2 className="text-2xl font-black text-white">Participation Consent</h2><p className="text-sm text-white/50">إقرار وموافقة المشارك</p></div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-5 flex items-center gap-4"><span className="text-2xl">🎓</span><div><p className="font-black text-white">{student.fullName}</p><p className="text-sm text-white/50">{student.grade} • Section {student.section}</p></div></div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-5"><div className="border-l-4 border-[#1697E8] pl-4"><p className="text-sm font-black text-[#1697E8] mb-2">📌 Declaration in English</p><p className="text-sm leading-7 text-white/70">I, <b className="text-white">{student.fullName}</b>, confirm my voluntary participation in <b className="text-[#1697E8]">"{compEn}"</b>.</p><ul className="mt-2 space-y-1 text-sm leading-7 text-white/55"><li>✅ My video will be evaluated fairly by a panel of teachers.</li><li>⚠️ My video stays locked ("Waiting Teachers Approval") until a teacher approves it — then it appears on the Champions page.</li>
-                <li>⏱ Max duration 3 minutes • 📦 Max file size 50 MB.</li><li>✅ The submitted work is my own original creation.</li></ul></div>
-            <div className="border-t border-white/10"/><div dir="rtl" className="border-r-4 border-[#FDB51F] pr-4"><p className="text-sm font-black text-[#FDB51F] mb-2">📌 إقرار بالعربية</p><p className="text-sm leading-8 text-white/80">أنا <b className="text-white">{student.fullName}</b>، أُقر بمشاركتي الطوعية في مسابقة <b className="text-[#FDB51F]">«{compAr}»</b>.</p><ul className="mt-2 space-y-1 text-sm leading-8 text-white/70"><li>✅ أعلم أن الفيديو سيُعرض للتقييم العادل من لجنة المعلمين.</li><li>⚠️ أعلم أن الفيديو يبقى مغلقاً بعبارة «بانتظار اعتماد المعلم» حتى يعتمده أحد المعلمين ثم يظهر للجميع.</li>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-5"><div className="border-l-4 border-[#1697E8] pl-4"><p className="text-sm font-black text-[#1697E8] mb-2">📌 Declaration in English</p><p className="text-sm leading-7 text-white/70">I, <b className="text-white">{student.fullName}</b>, confirm my voluntary participation in <b className="text-[#1697E8]">"{compEn}"</b>.</p><ul className="mt-2 space-y-1 text-sm leading-7 text-white/55"><li>✅ My video will be evaluated fairly by a panel of teachers.</li><li>⚠️ My submission stays locked ("Waiting Teachers Approval") until a teacher approves it — then it appears on the Champions page.</li>
+                <li>⏱ Max video duration 3 minutes • 📦 Max file size 50 MB.</li><li>✅ The submitted work is my own original creation.</li></ul></div>
+            <div className="border-t border-white/10"/><div dir="rtl" className="border-r-4 border-[#FDB51F] pr-4"><p className="text-sm font-black text-[#FDB51F] mb-2">📌 إقرار بالعربية</p><p className="text-sm leading-8 text-white/80">أنا <b className="text-white">{student.fullName}</b>، أُقر بمشاركتي الطوعية في مسابقة <b className="text-[#FDB51F]">«{compAr}»</b>.</p><ul className="mt-2 space-y-1 text-sm leading-8 text-white/70"><li>✅ أعلم أن الفيديو سيُعرض للتقييم العادل من لجنة المعلمين.</li><li>⚠️ أعلم أن مشاركتي (فيديو أو صورة) تبقى مغلقة بعبارة «بانتظار اعتماد المعلم» حتى تُعتمد ثم تظهر للجميع.</li>
                 <li>⏱ مدة الفيديو ٣ دقائق كحد أقصى • 📦 الحد الأقصى للحجم 50 ميجابايت.</li><li>✅ أؤكد أن العمل المقدم هو عملي الأصلي.</li></ul></div></div>
           <label className="mt-5 flex cursor-pointer items-start gap-4 rounded-2xl border border-[#FDB51F]/20 bg-[#FDB51F]/8 p-4 hover:bg-[#FDB51F]/12"><input type="checkbox" checked={ok} onChange={e=>setOk(e.target.checked)} className="mt-1 h-5 w-5 accent-[#FDB51F]"/><div><p className="text-sm font-black text-[#FFE29A]">I confirm and agree to all terms above.</p><p className="text-sm text-white/40 mt-0.5" dir="rtl">أؤكد رغبتي في المشاركة وأوافق على جميع البنود.</p></div></label>
           <div className="mt-5 flex gap-3"><button onClick={onNo} className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm font-black text-white/70 hover:bg-white/10">Decline</button><button disabled={!ok} onClick={onOk} className={cn("flex-[2] rounded-2xl px-5 py-4 text-sm font-black shadow-lg",ok?"bg-[#FDB51F] text-slate-950 hover:bg-[#F7C84A]":"cursor-not-allowed bg-white/10 text-white/30")}>✅ Confirm & Upload</button></div>
@@ -3096,8 +3123,12 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
   function onVid(e:React.ChangeEvent<HTMLInputElement>){
     const f=e.target.files?.[0]; if(!f) return;
     if(f.size > MAX_VIDEO_MB*1024*1024){
-      setMsg(`❌ حجم الفيديو ${(f.size/1048576).toFixed(1)}MB أكبر من الحد الأقصى ${MAX_VIDEO_MB}MB • File too large`);
+      setMsg(`❌ حجم الملف ${(f.size/1048576).toFixed(1)}MB أكبر من الحد الأقصى ${MAX_VIDEO_MB}MB • File too large`);
       setVidFile(null); setVidUrl(""); return;
+    }
+    if(f.type.startsWith("image/")){
+      setMsg(""); setVidFile(f); setVidUrl(URL.createObjectURL(f));
+      return;
     }
     const probe=document.createElement("video");
     probe.preload="metadata";
@@ -3188,7 +3219,7 @@ function StudentPage({student,comps,works,evals,certs,selCompId,setWorks,onBack}
                 </div>
               </div>)}
               <button disabled={!cid} onClick={()=>{setMsg("");setStep("consent")}} className={cn("w-full rounded-2xl px-5 py-4 text-sm font-black",cid?"bg-[#FDB51F] text-slate-950 hover:bg-[#F7C84A] shadow-lg":"cursor-not-allowed bg-white/10 text-white/30")}>📋 Read Consent & Participate</button></div></>)}
-            {step==="form"&&(<form onSubmit={submit} className="space-y-5"><div className="flex items-center gap-3 mb-2"><button type="button" onClick={()=>setStep("idle")} className="text-white/50 text-xs">← Back</button><p className="text-xs text-emerald-300 font-bold">✅ Consent Accepted</p></div><div><FL>Title</FL><Inp value={title} onChange={e=>setTitle(e.target.value)} placeholder="Work title"/></div><div><FL>📹 Upload Video</FL><label className={cn("flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed p-6 cursor-pointer transition",vidFile?"border-emerald-400/40 bg-emerald-500/5":"border-white/10 bg-white/5 hover:border-white/25")}><input type="file" accept="video/mp4,video/quicktime,video/*" onChange={onVid} className="hidden"/>{vidFile?(<><span className="text-3xl">🎬</span><p className="font-black text-emerald-300">{vidFile.name}</p><video src={vidUrl} controls className="w-full max-h-28 rounded-xl mt-2"/></>):(<><span className="text-3xl">📹</span><p className="text-sm font-black text-white">Click to select</p><p className="text-xs text-white/40">MP4, MOV, AVI • ⏱ Max 3 minutes • 📦 Max 50 MB</p></>)}</label></div>{upl&&<div className="rounded-2xl border border-sky-400/20 bg-sky-500/10 p-5 text-center animate-pulse"><div className="flex items-center justify-center gap-3 text-sky-200"><span className="text-xl">📹</span><span className="text-sm font-black uppercase tracking-widest">Uploading Video...</span></div><p className="text-[10px] text-white/40 mt-1 uppercase font-bold tracking-tighter">Please do not close the browser</p></div>}<button type="submit" disabled={upl} className={cn("w-full rounded-2xl px-5 py-4 text-sm font-black shadow-lg",upl?"cursor-not-allowed bg-white/10 text-white/30":"bg-[#FDB51F] text-slate-950 hover:bg-[#F7C84A]")}>{upl?`${prog}%...`:"🚀 Submit Work"}</button></form>)}
+            {step==="form"&&(<form onSubmit={submit} className="space-y-5"><div className="flex items-center gap-3 mb-2"><button type="button" onClick={()=>setStep("idle")} className="text-white/50 text-xs">← Back</button><p className="text-xs text-emerald-300 font-bold">✅ Consent Accepted</p></div><div><FL>Title</FL><Inp value={title} onChange={e=>setTitle(e.target.value)} placeholder="Work title"/></div><div><FL>📹 Upload File • تحميل المشاركة</FL><label className={cn("flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed p-6 cursor-pointer transition",vidFile?"border-emerald-400/40 bg-emerald-500/5":"border-white/10 bg-white/5 hover:border-white/25")}><input type="file" accept="video/mp4,video/quicktime,video/x-msvideo,image/jpeg,image/png,image/webp,image/gif" onChange={onVid} className="hidden"/>{vidFile?(<><span className="text-3xl">{vidFile.type.startsWith("image/")?"🖼️":"🎬"}</span><p className="font-black text-emerald-300">{vidFile.name}</p>{vidFile.type.startsWith("image/")?<img src={vidUrl} className="w-full max-h-48 rounded-xl object-contain mt-2"/>:<video src={vidUrl} controls className="w-full max-h-48 rounded-xl mt-2"/>}</>):(<><span className="text-3xl">📥</span><p className="text-sm font-black text-white">Select Video or Image • اختر فيديو أو صورة</p><p className="text-[11px] text-white/40">MP4, MOV, AVI, JPG, PNG, WEBP, GIF<br/>⏱ Max 3 minutes • 📦 Max 50 MB</p></>)}</label></div>{upl&&<div className="rounded-2xl border border-sky-400/20 bg-sky-500/10 p-5 text-center animate-pulse"><div className="flex items-center justify-center gap-3 text-sky-200"><span className="text-xl">⏳</span><span className="text-sm font-black uppercase tracking-widest">Uploading...</span></div><p className="text-[10px] text-white/40 mt-1 uppercase font-bold tracking-tighter">Please do not close the browser</p></div>}<button type="submit" disabled={upl} className={cn("w-full rounded-2xl px-5 py-4 text-sm font-black shadow-lg",upl?"cursor-not-allowed bg-white/10 text-white/30":"bg-[#FDB51F] text-slate-950 hover:bg-[#F7C84A]")}>{upl?`${prog}%...`:"🚀 Submit Work"}</button></form>)}
           </div></div>
         )}
         {sTab==="submissions"&&(<div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">{myWorks.length===0&&<div className="md:col-span-3 rounded-3xl border border-white/10 bg-white/5 p-12 text-center text-white/40">No submissions yet</div>}{myWorks.map(w=>{const ev=evals.find(e=>e.workId===w.id);const co=comps.find(c=>c.id===w.competitionId);return(<article key={w.id} className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden"><SecureVideo path={w.videoUrl} poster={w.thumb} controls className="w-full aspect-video object-cover"/><div className="p-4"><div className="text-[10px] font-black uppercase text-sky-300">{co?.nameEn}</div><h3 className="text-base font-black text-white mt-1">{w.title}</h3><div className="mt-3 flex flex-wrap gap-2"><StatusPill w={w}/>{ev?<Pill t="green">✅ Score: {tot(ev.scores)}/100</Pill>:null}</div>{!isApproved(w)&&<p className="mt-2 text-[11px] leading-5 text-white/40" dir="rtl">هذه معاينة خاصة لك فقط. لن يظهر الفيديو للجميع حتى يعتمده أحد المعلمين.</p>}</div></article>);})}</div>)}

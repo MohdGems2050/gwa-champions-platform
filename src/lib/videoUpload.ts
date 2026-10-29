@@ -8,6 +8,7 @@
 import { supabase, isSupabaseConfigured } from "./supabase";
 
 const BUCKET = "videos";
+const ALLOWED_MIME = ["video/mp4", "video/quicktime", "video/x-msvideo", "image/jpeg", "image/png", "image/webp", "image/gif"];
 const CHUNK_SIZE = 3 * 1024 * 1024;
 
 function safeName(name: string): string {
@@ -15,13 +16,14 @@ function safeName(name: string): string {
 }
 
 async function uploadToSupabase(file: File, onProgress?: (pct: number) => void): Promise<string> {
-  const path = `submissions/${Date.now()}-${crypto.randomUUID()}-${safeName(file.name || "video.mp4")}`;
+  const ext = file.name ? file.name.split(".").pop() : (file.type.startsWith("image/") ? "jpg" : "mp4");
+  const path = `submissions/${Date.now()}-${crypto.randomUUID()}.${ext}`;
   onProgress?.(15);
 
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
     cacheControl: "3600",
     upsert: false,
-    contentType: file.type || "video/mp4",
+    contentType: file.type,
   });
   if (error) throw new Error(error.message);
 
@@ -74,7 +76,8 @@ async function uploadToLegacyBlobs(file: File, onProgress?: (pct: number) => voi
 }
 
 export async function uploadVideo(file: File, onProgress?: (pct: number) => void): Promise<string> {
-  if (!file || file.size === 0) throw new Error("The selected video is empty");
+    if (!file || file.size === 0) throw new Error("The selected file is empty");
+  if (!ALLOWED_MIME.includes(file.type)) throw new Error("Unsupported file type: " + (file.type || "unknown"));
 
   let cloudError: unknown = null;
   if (isSupabaseConfigured) {
