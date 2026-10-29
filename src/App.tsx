@@ -138,9 +138,9 @@ const uaeNames=["سلطان المنصوري","موزة الكتبي","حمد ا
 
 const seedU: User[] = [
   /* ONE default teacher account — teaches several classes */
-  { id:"t1", fullName:"Ms Heba", role:"teacher", grade:"Grade 6:X;Grade 5:A", section:"", username:"heba", password:"Teach2050", createdAt:"", active:true },
+  { id:"t1", fullName:"Ms Heba", role:"teacher", grade:"Grade 6:X;Grade 5:A", section:"", username:"heba@gwa", password:"teacher@2050", createdAt:"", active:true },
   /* ONE default student account */
-  { id:"s1", fullName:"Mariam Salem", role:"student", grade:"Grade 6", section:"X", teacherId:"t1", username:"mariam.salem", password:"GWA2050", createdAt:"", active:true },
+  { id:"s1", fullName:"Mariam Salem", role:"student", grade:"Grade 6", section:"X", teacherId:"t1", username:"mariam@gwa", password:"student@2050", createdAt:"", active:true },
 ];
 
 const seedC:Comp[]=[
@@ -304,10 +304,29 @@ function sv(k:string,v:any){
 }
 function tot(s:number[]){return s.reduce((a,b)=>a+b,0)}
 function slug(n:string){return n.trim().toLowerCase().replace(/[^a-z0-9\s]/g,"").replace(/\s+/g,".").replace(/^\.+|\.+$/g,"")}
+
+const TITLE_WORDS=["mr","ms","mrs","dr","prof","sheikh","miss"];
+function firstGivenName(fullName:string):string{
+  const parts=String(fullName||"").trim().split(/\s+/);
+  const candidate=TITLE_WORDS.includes((parts[0]||"").toLowerCase().replace(/[^a-z]/g,""))&&parts.length>1 ? parts[1] : parts[0];
+  return candidate.toLowerCase().replace(/[^a-z]/g,"")||"user";
+}
+function buildUsername(fullName:string,users:User[]):string{
+  const base=firstGivenName(fullName)+"@gwa";
+  if(!users.some(x=>x.username.toLowerCase()===base.toLowerCase())) return base;
+  let c=2;while(users.some(x=>x.username.toLowerCase()===(base+c).toLowerCase())) c++;
+  return base+c;
+}
+function buildPassword(role:Role,users:User[]):string{
+  const prefix=role==="teacher"?"teacher@":"student@";
+  const used=new Set(users.map(u=>u.password));
+  let pw:string; let tries=0;
+  do { pw=prefix+String(Math.floor(1000+Math.random()*9000)); tries++; } while(used.has(pw)&&tries<300);
+  return pw;
+}
 function mkUser(name:string,role:Role,grade:string,section:string,tid:string|undefined,users:User[]):User{
-  let u=slug(name)||"gwa.user";let c=1;while(users.some(x=>x.username===u)){u=slug(name)+c;c++}
-  const num=String(users.length+2050).slice(-4);
-  return{id:mid(role.charAt(0)),fullName:name.trim(),role,grade,section:role==="student"?section:"",teacherId:tid,username:u,password:(role==="teacher"?"Teach":"GWA")+num,createdAt:new Date().toISOString(),active:true}
+  return{id:mid(role.charAt(0)),fullName:name.trim(),role,grade,section:role==="student"?section:"",teacherId:tid,
+    username:buildUsername(name,users),password:buildPassword(role,users),createdAt:new Date().toISOString(),active:true}
 }
 
 
@@ -2857,8 +2876,8 @@ function AdminPage({users,setUsers,comps,setComps,works,evals,archive,adminPw,se
               <div className="space-y-3">{users.filter(u=>u.id!=="admin").map(u=>(
                 <div key={u.id} className={cn("rounded-2xl border p-4 transition",u.active?"border-white/10 bg-black/20":"border-rose-500/20 bg-rose-500/5 opacity-60")}>
                   <div className="flex justify-between items-start gap-2">
-                    <div className="min-w-0"><div className="font-black text-white flex items-center gap-2 flex-wrap">{u.fullName}{!u.active&&<span className="text-[9px] bg-rose-500 text-white px-2 py-0.5 rounded-full uppercase">Disabled</span>}</div><div className="flex flex-wrap gap-1.5 mt-2"><Pill t={u.role==="teacher"?"green":"blue"}>{u.role}</Pill>{u.role==="student"&&<Pill t="gold">{u.grade}</Pill>}{u.role==="student"&&<Pill t="pink">{u.section}</Pill>}{u.role==="teacher"&&decodeClasses(u).map(c=><Pill key={`${c.grade}-${c.section}`} t="green">🏫 {classLabel(c)}</Pill>)}{u.role==="student"&&u.teacherId&&<Pill t="slate">Teacher: {teachers.find(t=>t.id===u.teacherId)?.fullName||"—"}</Pill>}</div><div className="mt-1.5 text-xs text-white/40 font-bold">👤 {u.username} / 🔑 {u.password}</div></div>
-                    <div className="flex flex-col gap-1.5 shrink-0">{u.role==="teacher"&&<button onClick={()=>setEditClassesFor(u)} className="rounded-xl px-3 py-1.5 text-[10px] font-black bg-sky-500/20 border border-sky-400/30 text-sky-200 hover:bg-sky-500/30 transition">🏫 Classes</button>}<button onClick={()=>setUsers(prev=>prev.map(it=>it.id===u.id?{...it,active:!it.active}:it))} className={cn("rounded-xl px-3 py-2 text-xs font-black transition",u.active?"bg-rose-500 text-white hover:bg-rose-600":"bg-emerald-500 text-white hover:bg-emerald-600")}>{u.active?"Disable":"Activate"}</button><button onClick={()=>{if(window.confirm(`Remove "${u.fullName}" permanently?\n\nThis account will be deleted from all devices and cannot sign in again.\nحذف الحساب نهائياً من كل الأجهزة ولا يمكن الدخول مجدداً.`)){ void cloudDeleteUser(u.id,u.username); setUsers(prev=>prev.filter(it=>it.id!==u.id)); }}} className="rounded-xl px-3 py-1.5 text-[10px] font-black bg-black/30 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition">🗑 Remove</button></div>
+                    <div className="min-w-0"><div className="font-black text-white flex items-center gap-2 flex-wrap">{u.fullName}{!u.active&&<span className="text-[9px] bg-rose-500 text-white px-2 py-0.5 rounded-full uppercase">Disabled</span>}</div><div className="flex flex-wrap gap-1.5 mt-2"><Pill t={u.role==="teacher"?"green":"blue"}>{u.role}</Pill>{u.role==="student"&&<Pill t="gold">{u.grade}</Pill>}{u.role==="student"&&<Pill t="pink">{u.section}</Pill>}{u.role==="teacher"&&decodeClasses(u).map(c=><Pill key={`${c.grade}-${c.section}`} t="green">🏫 {classLabel(c)}</Pill>)}{u.role==="student"&&u.teacherId&&<Pill t="slate">Teacher: {teachers.find(t=>t.id===u.teacherId)?.fullName||"—"}</Pill>}</div><div className="mt-1.5 text-xs text-white/40 font-bold font-mono">👤 {u.username} / 🔑 {u.password}</div></div>
+                    <div className="flex flex-col gap-1.5 shrink-0">{u.role==="teacher"&&<button onClick={()=>setEditClassesFor(u)} className="rounded-xl px-3 py-1.5 text-[10px] font-black bg-sky-500/20 border border-sky-400/30 text-sky-200 hover:bg-sky-500/30 transition">🏫 Classes</button>}<button onClick={()=>setUsers(prev=>prev.map(it=>it.id===u.id?{...it,active:!it.active}:it))} className={cn("rounded-xl px-3 py-2 text-xs font-black transition",u.active?"bg-rose-500 text-white hover:bg-rose-600":"bg-emerald-500 text-white hover:bg-emerald-600")}>{u.active?"⛔ Disable":"✅ Activate"}</button><button onClick={()=>{if(window.confirm(`Remove "${u.fullName}" permanently?\n\nThis account will be deleted from all devices and cannot sign in again.\nحذف الحساب نهائياً من كل الأجهزة ولا يمكن الدخول مجدداً.`)){ void cloudDeleteUser(u.id,u.username); setUsers(prev=>prev.filter(it=>it.id!==u.id)); }}} className="rounded-xl px-3 py-1.5 text-[10px] font-black bg-black/30 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition">🗑 Remove</button></div>
                   </div>
                 </div>
               ))}</div>
