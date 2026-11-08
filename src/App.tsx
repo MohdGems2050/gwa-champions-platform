@@ -2020,10 +2020,10 @@ function HomePage({onStart,onAdmin,onStudent,onTeacher}:{onStart:()=>void;onAdmi
 
         {/* actions + stats */}
         <div className="flex flex-col gap-6">
-          <button onClick={onStart} className="group w-full rounded-full bg-gradient-to-r from-[#FDB51F] to-[#E21455] p-[2px] shadow-[0_0_40px_rgba(253,181,31,0.3)] transition-all hover:scale-[1.02] hover:shadow-[0_0_60px_rgba(253,181,31,0.45)]">
-            <span className="flex items-center justify-center gap-3 rounded-full bg-[#0b1028] px-6 py-4">
-              <span className="text-xl">🚀</span>
-              <span className="text-base font-black text-white sm:text-lg">Start Viewing • بدء المشاهدة</span>
+          <button onClick={onStart} className="group w-full rounded-full bg-gradient-to-r from-[#FDB51F] via-[#E21455] to-[#FDB51F] p-[3px] shadow-[0_0_50px_rgba(253,181,31,0.4)] transition-all hover:scale-[1.05] hover:shadow-[0_0_80px_rgba(253,181,31,0.6)] animate-pulse">
+            <span className="flex items-center justify-center gap-4 rounded-full bg-[#0b1028] px-8 py-6">
+              <span className="text-3xl">🚀</span>
+              <span className="text-xl font-black text-white sm:text-2xl uppercase tracking-wider">Start Viewing • بدء المشاهدة</span>
             </span>
           </button>
 
@@ -2139,9 +2139,14 @@ function ShowcasePage({comps,users,works,evals,likes,setLikes,setEvals,setWorks,
                       <span>🎬 {compWorksCount} Submissions</span>
                       <span className="transition group-hover:text-white" style={{color:co.border}}>View All →</span>
                     </div>
-                    <div className="mt-3 flex gap-2">
-                      <button onClick={e=>{e.stopPropagation();onParticipate(c.id)}} className="rounded-full bg-[#FDB51F] px-4 py-2 text-xs font-black text-slate-950 hover:bg-[#F7C84A] shadow">Participate 🎓</button>
-                      <Pill t="pink">Closes: {c.closingDate}</Pill>
+                    <div className="mt-4 space-y-3">
+                      <button onClick={(e)=>{e.stopPropagation(); setSelCompId(c.id); setGradeFilter(null);}} className="w-full rounded-2xl bg-gradient-to-r from-[#1697E8] to-[#10B09B] py-3 text-sm font-black text-white shadow-lg shadow-sky-500/20 hover:scale-[1.02] transition-all">
+                        🚀 Start Viewing • بدء المشاهدة
+                      </button>
+                      <div className="flex gap-2">
+                        <button onClick={e=>{e.stopPropagation();onParticipate(c.id)}} className="flex-1 rounded-full bg-[#FDB51F] px-4 py-2 text-xs font-black text-slate-950 hover:bg-[#F7C84A] shadow transition-all">Participate 🎓</button>
+                        <Pill t="pink">Closes: {c.closingDate}</Pill>
+                      </div>
                     </div>
                   </div>
                 </button>
